@@ -47,7 +47,7 @@
     <parent>
         <groupId>org.glassfish.main.admin</groupId>
         <artifactId>nucleus-admin</artifactId>
-        <version>5.191-SNAPSHOT</version>
+        <version>5.192-SNAPSHOT</version>
     </parent>
     
     <artifactId>admin-util</artifactId>
@@ -160,6 +160,11 @@
             <groupId>javax.json</groupId>
             <artifactId>javax.json-api</artifactId>
             <version>${jsonp.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>jline</groupId>
+            <artifactId>jline</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 </project>

@@ -43,7 +43,7 @@
     <parent>
         <groupId>org.glassfish.main.packager</groupId>
         <artifactId>packages</artifactId>
-        <version>5.191-SNAPSHOT</version>
+        <version>5.192-SNAPSHOT</version>
     </parent>
     
     <artifactId>microprofile-package</artifactId>
@@ -225,7 +225,7 @@
         </dependency>
         <dependency>
             <groupId>org.glassfish.jersey.ext</groupId>
-            <artifactId>jersey-microprofile-rest-client</artifactId>
+            <artifactId>mp-rest-client</artifactId>
         </dependency>
             
         <!-- OpenTracing -->

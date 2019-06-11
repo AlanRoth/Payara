@@ -48,7 +48,7 @@
     <parent>
         <groupId>org.glassfish.main.admin</groupId>
         <artifactId>rest-service-parent</artifactId>
-        <version>5.191-SNAPSHOT</version>
+        <version>5.192-SNAPSHOT</version>
     </parent>
     
     <artifactId>rest-service</artifactId>
@@ -56,7 +56,7 @@
     <name>GlassFish Admin REST Service</name>
     
     <description>Rest Interface for GlassFish Management and Monitoring</description>
-
+    
     <dependencies>
         <dependency>
             <groupId>javax.ws.rs</groupId>
@@ -112,7 +112,7 @@
             <artifactId>jersey-media-sse</artifactId>
             <scope>provided</scope>
         </dependency>
-         <dependency>
+        <dependency>
             <groupId>org.glassfish.jersey.media</groupId>
             <artifactId>jersey-media-multipart</artifactId>
             <scope>provided</scope>
@@ -153,6 +153,11 @@
             <scope>provided</scope>
         </dependency>
         
+        <dependency>
+            <groupId>fish.payara.payara-modules</groupId>
+            <artifactId>asadmin-audit</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>fish.payara.payara-modules</groupId>
             <artifactId>asadmin-recorder</artifactId>
