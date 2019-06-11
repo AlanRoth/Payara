@@ -120,7 +120,7 @@ public class SignedJWTIdentityStore implements IdentityStore {
 
             JsonWebTokenImpl jsonWebToken
                     = jwtTokenParser.verify(acceptedIssuer, publicKey.get());
-
+            
             List<String> groups = new ArrayList<>(
                     jsonWebToken.getClaim("groups"));
 

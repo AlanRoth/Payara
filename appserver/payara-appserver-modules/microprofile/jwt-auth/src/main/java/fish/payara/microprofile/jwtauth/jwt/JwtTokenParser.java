@@ -88,13 +88,22 @@ public class JwtTokenParser {
     public void parse(String bearerToken) throws Exception {
         rawToken = bearerToken;
         signedJWT = SignedJWT.parse(rawToken);
-
+        
         // MP-JWT 1.0 4.1 typ
         if (!checkIsJWT(signedJWT.getHeader())) {
             throw new IllegalStateException("Not JWT");
         }
     }
     
+    public JsonWebTokenImpl parse(String bearerToken, String issuer, PublicKey signedBy) throws Exception {
+        try{
+            parse(bearerToken);
+            return verify(issuer, signedBy);
+        }catch(Exception e) {
+            throw new IllegalStateException("", e);
+        }
+    }
+
     public JsonWebTokenImpl verify(String issuer, PublicKey publicKey) throws Exception {
         checkState(signedJWT != null, "No parsed SignedJWT.");
         
