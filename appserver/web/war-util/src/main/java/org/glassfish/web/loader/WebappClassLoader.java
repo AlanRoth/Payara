@@ -109,6 +109,7 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javassist.NotFoundException;
 
 /**
  * Specialized web application class loader.
@@ -510,7 +511,7 @@ public class WebappClassLoader
      */
     public void setResources(DirContext resources) {
         this.resources = resources;
-
+        
         DirContext res = resources;
         if (resources instanceof ProxyDirContext) {
             ProxyDirContext proxyRes = (ProxyDirContext)res;
@@ -803,19 +804,25 @@ public class WebappClassLoader
         // Note : There should be only one (of course), but I think we should
         // keep this a bit generic
 
-        if (repository == null)
+        if (repository == null) {
             return;
-
-        if (logger.isLoggable(Level.FINER))
+        }
+        
+        if (application.isWhitelistEnabled() && !DOLUtils.isResourceWhiteListed(application, repository)) {
+            return;
+        }
+        
+        if (logger.isLoggable(Level.FINER)) {
             logger.log(Level.FINER, "addRepository(" + repository + ")");
-
+        }
+        
         int i;
 
         // Add this repository to our internal list
         String[] result = new String[repositories.length + 1];
         for (i = 0; i < repositories.length; i++) {
-            result[i] = repositories[i];
-        }
+                    result[i] = repositories[i];
+                }
         result[repositories.length] = repository;
         repositories = result;
 
@@ -1126,7 +1133,13 @@ public class WebappClassLoader
             }
             if ((clazz == null) && hasExternalRepositories) {
                 try {
-                    clazz = super.findClass(name);
+                    if(application.isWhitelistEnabled() && DOLUtils.isResourceWhiteListed(application, name)) {
+                        clazz = super.findClass(name);
+                    } else if(application.isWhitelistEnabled() && !DOLUtils.isResourceWhiteListed(application, name)) {
+                        return null;
+                    } else {
+                        clazz = super.findClass(name);
+                    }                  
                 } catch(AccessControlException ace) {
                     if (logger.isLoggable(Level.WARNING)) {
                         String msg = getString(LogFacade.FIND_CLASS_INTERNAL_SECURITY_EXCEPTION,
@@ -1180,7 +1193,7 @@ public class WebappClassLoader
     public URL findResource(String name) {
         if (logger.isLoggable(Level.FINER))
             logger.log(Level.FINER, "    findResource(" + name + ")");
-
+        
         URL url = null;
 
         if (".".equals(name)) {
@@ -1189,22 +1202,23 @@ public class WebappClassLoader
 
         ResourceEntry entry = resourceEntries.get(name);
         if (entry == null) {
-            entry = findResourceInternal(name, name);
-        }
+                entry = findResourceInternal(name, name);
+            }
         if (entry != null) {
-            url = entry.source;
-        }
+                url = entry.source;
+            }
 
-        if ((url == null) && hasExternalRepositories)
+        if ((url == null) && hasExternalRepositories) {
             url = super.findResource(name);
-
+        }
+            
         if (logger.isLoggable(Level.FINER)) {
             if (url != null)
                 logger.log(Level.FINER, "    --> Returning '" + url.toString() + "'");
             else
                 logger.log(Level.FINER, "    --> Resource not found, returning null");
         }
-        return (url);
+        return url;
 
     }
 
@@ -1283,10 +1297,19 @@ public class WebappClassLoader
      */
     @Override
     public URL getResource(String name) {
-        if (logger.isLoggable(Level.FINER))
+        if (logger.isLoggable(Level.FINER)) {
             logger.log(Level.FINER, "getResource(" + name + ")");
+        }
         URL url = null;
-
+        
+        boolean isWhitelisted = DOLUtils.isResourceWhiteListed(application, name);
+        if(application.isWhitelistEnabled() && !isWhitelisted) {
+            if (logger.isLoggable(Level.FINER)) {
+                logger.log(Level.FINER, "Whitelist is enabled, but the requested resource is not whitelisted");
+            }
+            return null;
+        }
+        
         /*
          * (1) Delegate to parent if requested, or if the requested resource
          * belongs to one of the packages that are part of the Java EE platform
@@ -1306,30 +1329,36 @@ public class WebappClassLoader
         }
 
         // (2) Search local repositories
-        url = findResource(name);
+            url = findResource(name);
         if (url != null) {
-            if (antiJARLocking) {
-                // Locating the repository for special handling in the case
-                // of a JAR
-                ResourceEntry entry = resourceEntries.get(name);
-                try {
-                    String repository = entry.codeBase.toString();
-                    if ((repository.endsWith(".jar"))
-                            && !(name.endsWith(".class"))
-                            && !(name.endsWith(".jar"))) {
-                        // Copy binary content to the work directory if not present
-                        File resourceFile = new File(loaderDir, name);
-                        url = resourceFile.toURI().toURL();
+                if (antiJARLocking) {
+                    // Locating the repository for special handling in the case
+                    // of a JAR
+                    ResourceEntry entry = resourceEntries.get(name);
+                    try {
+                        String repository = entry.codeBase.toString();
+                        if ((repository.endsWith(".jar"))
+                                && !(name.endsWith(".class"))
+                                && !(name.endsWith(".jar"))) {
+                            // Copy binary content to the work directory if not present
+                            File resourceFile = new File(loaderDir, name);
+                            url = resourceFile.toURI().toURL();
+                        }
+                    } catch (Exception e) {
+                        // Ignore
                     }
-                } catch (Exception e) {
-                    // Ignore
                 }
-            }
-            if (logger.isLoggable(Level.FINER))
+            if (logger.isLoggable(Level.FINER)) {
                 logger.log(Level.FINER, "  --> Returning '" + url.toString() + "'");
-            return (url);
+            }
+            
+            if(application.isWhitelistEnabled() && isWhitelisted) {
+                return url;
+            } else if(!application.isWhitelistEnabled()) {
+                return url;
+            }
         }
-
+        
         // (3) Delegate to parent unconditionally if not already attempted
         if (!delegate) {
             ClassLoader loader = parent;
@@ -1337,17 +1366,18 @@ public class WebappClassLoader
                 loader = system;
             url = loader.getResource(name);
             if (url != null) {
-                if (logger.isLoggable(Level.FINER))
+                if (logger.isLoggable(Level.FINER)) {
                     logger.log(Level.FINER, "  --> Returning '" + url.toString() + "'");
-                return (url);
+                }
+                return url;
             }
         }
 
         // (4) Resource was not found
-        if (logger.isLoggable(Level.FINER))
+        if (logger.isLoggable(Level.FINER)) {
             logger.log(Level.FINER, "  --> Resource not found, returning null");
-        return (null);
-
+        }
+        return null;
     }
 
 
@@ -1415,16 +1445,25 @@ public class WebappClassLoader
 
         // (3) Delegate to parent unconditionally
         if (!delegate) {
-            if (logger.isLoggable(Level.FINER))
+            if (application.isWhitelistEnabled() && !DOLUtils.isResourceWhiteListed(application, name)) {
+                if (logger.isLoggable(Level.FINER)) {
+                    logger.log(Level.FINER, "Whitelist is enabled, but the requested resource is not whitelisted");
+                }
+                return null;
+            }
+            if (logger.isLoggable(Level.FINER)) {
                 logger.log(Level.FINER, "  Delegating to parent classloader unconditionally " + parent);
+            }
             ClassLoader loader = parent;
-            if (loader == null)
+            if (loader == null) {
                 loader = system;
+            }
             stream = loader.getResourceAsStream(name);
             if (stream != null) {
                 // FIXME - cache???
-                if (logger.isLoggable(Level.FINER))
+                if (logger.isLoggable(Level.FINER)) {
                     logger.log(Level.FINER, "  --> Returning stream from parent");
+                }
                 return (stream);
             }
         }
@@ -1489,7 +1528,7 @@ public class WebappClassLoader
         };
     }
 
-
+    
     /**
      * Load the class with the specified name.  This method searches for
      * classes in the same manner as <code>loadClass(String, boolean)</code>
@@ -1533,8 +1572,7 @@ public class WebappClassLoader
      * @exception ClassNotFoundException if the class was not found
      */
     @Override
-    protected synchronized Class<?> loadClass(String name, boolean resolve)
-        throws ClassNotFoundException {
+    protected synchronized Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
 
         if (logger.isLoggable(Level.FINER)) {
             logger.log(Level.FINER, "loadClass({0})", name);
@@ -1547,7 +1585,7 @@ public class WebappClassLoader
             throw new IllegalStateException(
                 getString(LogFacade.NOT_STARTED, name));
         }
-
+        
         // (0) Check our previously loaded local class cache
         clazz = findLoadedClass0(name);
         if (clazz != null) {
@@ -1635,7 +1673,7 @@ public class WebappClassLoader
         }
 
         // (3) Delegate if class was not found locally
-        if ((application.isWhitelistEnabled()? isWhitelisted : true) && !delegateLoad) {
+        if ((application.isWhitelistEnabled() ? isWhitelisted : true) && !delegateLoad) {
             if (logger.isLoggable(Level.FINER)) {
                 logger.log(Level.FINER, "  Delegating to classloader " + delegateLoader);
             }
@@ -1648,7 +1686,7 @@ public class WebappClassLoader
                     if (resolve)
                         resolveClass(clazz);
                     return clazz;
-                }
+                } 
             } catch (ClassNotFoundException e) {
                 // Ignore
             }
@@ -2642,24 +2680,21 @@ public class WebappClassLoader
     protected ResourceEntry findClassInternal(String name)
         throws ClassNotFoundException {
 
-        if (!validate(name))
-            throw new ClassNotFoundException(name);
-
+        if (!validate(name)) throw new ClassNotFoundException(name);
+            
         String tempPath = name.replace('.', '/');
         String classPath = tempPath + ".class";
 
         ResourceEntry entry = findResourceInternal(name, classPath);
 
-        if (entry == null)
-               throw new ClassNotFoundException(name);
+        if (entry == null) throw new ClassNotFoundException(name);
 
         synchronized (this) {
             Class<?> clazz = entry.loadedClass;
             if (clazz != null)
                 return entry;
 
-            if (entry.binaryContent == null)
-                throw new ClassNotFoundException(name);
+            if (entry.binaryContent == null) throw new ClassNotFoundException(name);
         }
 
         // Looking up the package
@@ -2742,11 +2777,15 @@ public class WebappClassLoader
                 throw new IllegalStateException(
                 getString(LogFacade.NOT_STARTED, name));
         }
-
+        
+        if(application.isWhitelistEnabled() && !DOLUtils.isResourceWhiteListed(application, name)) {
+            return null;
+        }
+        
         if ((name == null) || (path == null)) {
             return null;
         }
-
+        
         ResourceEntry entry = resourceEntries.get(name);
         if (entry != null) {
             return entry;
@@ -2758,9 +2797,9 @@ public class WebappClassLoader
 
         if (entry == null) {
             synchronized (jarFiles) {
-                entry = findResourceInternalFromJars(name, path);
-            }
-        }
+                        entry = findResourceInternalFromJars(name, path);
+                    }
+                }
 
         if (entry == null) {
             notFoundResources.put(name, name);

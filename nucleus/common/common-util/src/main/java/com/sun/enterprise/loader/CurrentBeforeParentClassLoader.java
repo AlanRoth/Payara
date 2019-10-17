@@ -54,6 +54,13 @@ import java.util.logging.Logger;
  * @author lprimak
  */
 public class CurrentBeforeParentClassLoader extends URLClassLoader {
+    protected boolean currentBeforeParentEnabled = false;
+    private final ClassLoader system = getClass().getClassLoader();
+    private final ClassLoader _parent = getParent();
+    private final ClassLoader parent = _parent != null ? _parent : system;
+    private static final Logger logger = CULoggerInfo.getLogger();
+    public static final String PARENT_CLASSLOADER_DELEGATE_PROPERTY = "fish.payara.classloading.delegate";
+    
     public CurrentBeforeParentClassLoader(URL[] urls, ClassLoader parent) {
         super(urls, parent);
     }
@@ -77,9 +84,10 @@ public class CurrentBeforeParentClassLoader extends URLClassLoader {
      */
     @Override
     protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-        boolean isWhitelisted = isWhitelistEnabled() && isWhiteListed(name);
-        if((!currentBeforeParentEnabled && (isWhitelistEnabled()? isWhitelisted : true)) || isAlwaysDelegate(name))
-        {
+        // Redundant? Is always False
+        //boolean isWhitelisted = isWhitelistEnabled() && isWhiteListed(name); 
+       
+        if (!currentBeforeParentEnabled || isAlwaysDelegate(name)) {
             return super.loadClass(name, resolve);
         }
         synchronized (getClassLoadingLock(name)) {
@@ -91,15 +99,9 @@ public class CurrentBeforeParentClassLoader extends URLClassLoader {
             try {
                 c = findClass(name);
                 logger.finest(String.format("Found Locally: %s - %s", name, c.getName()));
-            }
-            catch(ClassNotFoundException e) {
-                if(!isWhitelistEnabled() || isWhitelisted) {
-                    logger.finest(String.format("Not Found Locally - Looking in Parent: %s", name));
-                    return parent.loadClass(name);
-                }
-                else {
-                    throw new ClassNotFoundException(String.format("Whitelist enabled, but class [%s] is not whitelisted", name), e);
-                }
+            } catch (ClassNotFoundException e) {
+                logger.finest(String.format("Not Found Locally - Looking in Parent: %s", name));
+                return parent.loadClass(name);
             }
             if (resolve) {
                 resolveClass(c);
@@ -107,26 +109,16 @@ public class CurrentBeforeParentClassLoader extends URLClassLoader {
             return c;
         }
     }
-
-
-    /**
-     * support for extreme class loading
-     *
-     * @param className
-     * @return true if white-listed
-     */
+    
+ 
     protected boolean isWhiteListed(String className) {
         return false;
     }
-
-
-    /**
-     * @return true if extreme classloading is enabled
-     */
+    
+    
     protected boolean isWhitelistEnabled() {
         return false;
     }
-    
     
     /**
      * enable current-first behavior
@@ -164,11 +156,4 @@ public class CurrentBeforeParentClassLoader extends URLClassLoader {
         super.addURL(url);
     }
     
-    protected boolean currentBeforeParentEnabled = false;
-    
-    private final ClassLoader system = getClass().getClassLoader();
-    private final ClassLoader _parent = getParent();
-    private final ClassLoader parent = _parent != null? _parent : system;
-    private static final Logger logger = CULoggerInfo.getLogger();
-    public static final String PARENT_CLASSLOADER_DELEGATE_PROPERTY = "fish.payara.classloading.delegate";
 }

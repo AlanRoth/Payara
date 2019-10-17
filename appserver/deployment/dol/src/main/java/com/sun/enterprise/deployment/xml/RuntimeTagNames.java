@@ -71,6 +71,7 @@ public interface RuntimeTagNames extends TagNames {
     public final static String PAYARA_SCANNING_EXCLUDE = "scanning-exclude";
     public final static String PAYARA_SCANNING_INCLUDE = "scanning-include";
     public final static String PAYARA_WHITELIST_PACKAGE = "whitelist-package";
+    public final static String PAYARA_WHITELIST_RESOURCE = "whitelist-resource";
     public final static String PAYARA_JAXRS_ROLES_ALLOWED_ENABLED = "jaxrs-roles-allowed-enabled";
     public final static String PAYARA_APPLICATION_RUNTIME_TAG = "payara-application";
     public final static String PAYARA_WEB_RUNTIME_TAG = "payara-web-app";

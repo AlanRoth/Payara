@@ -174,56 +174,56 @@ public class ApplicationRuntimeNode extends RuntimeBundleNode<Application> {
      */
     public void setElementValue(XMLElement element, String value) {
 	if (element.getQName().equals(RuntimeTagNames.PASS_BY_REFERENCE)) {
-	    descriptor.setPassByReference("true".equalsIgnoreCase(value));
+                descriptor.setPassByReference("true".equalsIgnoreCase(value));
 	} else
         if (element.getQName().equals(RuntimeTagNames.UNIQUE_ID)) {
-            DOLUtils.getDefaultLogger().finer("Ignoring unique id");
-            return;
+                DOLUtils.getDefaultLogger().finer("Ignoring unique id");
+                return;
         } else
 	if (element.getQName().equals(RuntimeTagNames.ARCHIVE_NAME)) {
-	    descriptor.setArchiveName(value);
+                descriptor.setArchiveName(value);
 	} else
 	if (element.getQName().equals(RuntimeTagNames.COMPATIBILITY)) {
-	    descriptor.setCompatibility(value);
+                descriptor.setCompatibility(value);
 	} else
 	if (element.getQName().equals(RuntimeTagNames.PAYARA_CLASSLOADING_DELEGATE)) {
-	    descriptor.setClassLoadingDelegate(value);
+                descriptor.setClassLoadingDelegate(value);
 	} else 
 	if (element.getQName().equals(RuntimeTagNames.PAYARA_ENABLE_IMPLICIT_CDI)) {
             // ignore, handled in EarHandler.java
 	} else 
 	if (element.getQName().equals(RuntimeTagNames.PAYARA_SCANNING_EXCLUDE)) {
-            descriptor.addScanningExclusions(Collections.singletonList(value));
+                descriptor.addScanningExclusions(Collections.singletonList(value));
 	} else
 	if (element.getQName().equals(RuntimeTagNames.PAYARA_SCANNING_INCLUDE)) {
-            descriptor.addScanningInclusions(Collections.singletonList(value));
+                descriptor.addScanningInclusions(Collections.singletonList(value));
 	} else
 	if (element.getQName().equals(RuntimeTagNames.PAYARA_WHITELIST_PACKAGE)) {
-            descriptor.addWhitelistPackage(value);
+                descriptor.addWhitelistPackage(value);
 	} else
 	if (element.getQName().equals(RuntimeTagNames.WEB_URI)) {
-	    currentWebUri=value;
+                currentWebUri=value;
 	} else 
 	if (element.getQName().equals(RuntimeTagNames.CONTEXT_ROOT)) {
-	    if (currentWebUri!=null) {
-		ModuleDescriptor md = descriptor.getModuleDescriptorByUri(currentWebUri);
-                if (md==null) {
-                    throw new RuntimeException("No bundle in application with uri " + currentWebUri);
-                }
-		currentWebUri=null;
-		if (md.getModuleType().equals(DOLUtils.warType())) {
-		    md.setContextRoot(value);
-		} else {
-		    throw new RuntimeException(currentWebUri + " uri does not point to a web bundle");
-		} 
-	    } else {
-		throw new RuntimeException("No uri provided for this context-root " + value);
+                if (currentWebUri!=null) {
+                    ModuleDescriptor md = descriptor.getModuleDescriptorByUri(currentWebUri);
+                    if (md==null) {
+                        throw new RuntimeException("No bundle in application with uri " + currentWebUri);
+                    }
+                    currentWebUri=null;
+                    if (md.getModuleType().equals(DOLUtils.warType())) {
+                        md.setContextRoot(value);
+                    } else {
+                        throw new RuntimeException(currentWebUri + " uri does not point to a web bundle");
+                    }
+                } else {
+                    throw new RuntimeException("No uri provided for this context-root " + value);
 	    }
         } else if (element.getQName().equals(RuntimeTagNames.KEEP_STATE)) {
-            descriptor.setKeepState(value);
+                descriptor.setKeepState(value);
         } else if (element.getQName().equals(RuntimeTagNames.VERSION_IDENTIFIER)) {
 	} else super.setElementValue(element, value);
-    }
+        }
 
     /**
      * Adds  a new DOL descriptor instance to the descriptor instance associated with 

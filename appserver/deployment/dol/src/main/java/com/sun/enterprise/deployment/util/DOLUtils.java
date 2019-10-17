@@ -103,9 +103,6 @@ import com.sun.enterprise.deployment.io.DescriptorConstants;
 import com.sun.enterprise.deployment.node.XMLElement;
 import com.sun.enterprise.deployment.xml.TagNames;
 import com.sun.enterprise.util.LocalStringManagerImpl;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -165,6 +162,8 @@ public class DOLUtils {
     private static final String ID_SEPARATOR = "_";
     private static final String[] SYSTEM_PACKAGES = {"com.sun.", "org.glassfish.", "org.apache.jasper.", "fish.payara.", "com.ibm.jbatch.",
                             "org.hibernate.validator.", "org.jboss.weld.", "com.ctc.wstx.", "java.", "javax."};
+    private static final String[] SYSTEM_RESOURCES = {"fish.payara.server.internal.resourcebase.resources", "fish.payara.server.internal.resources",
+    "WEB-INF.classes", "META-INF"};
     
     /** no need to creates new DOLUtils */
     private DOLUtils() {
@@ -998,6 +997,7 @@ public class DOLUtils {
      * @return true if the class is white-listed
      */
     public static boolean isWhiteListed(Application application, String className) {
+        //Whitelisted classes
         for (String packageName : SYSTEM_PACKAGES) {
             if (className.startsWith(packageName)) {
                 return true;
@@ -1007,7 +1007,24 @@ public class DOLUtils {
             if (className.startsWith(packageName)) {
                 return true;
             }
+        } 
+        return false;
+    }
+    
+    public static boolean isResourceWhiteListed(Application application, String className) {
+        //Whitelisted classpath resources
+        for (String resourceName : SYSTEM_RESOURCES) {
+            if(className.startsWith(resourceName)) {
+                return true;
+            }
+        }
+        
+        for (String resourceName : application.getWhitelistResources()) {
+            if(className.startsWith(resourceName)) {
+                return true;
+            }
         }
         return false;
     }
+    
 }

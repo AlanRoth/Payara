@@ -272,8 +272,8 @@ public class APIClassLoaderServiceImpl implements PostConstruct {
                                         new Object[]{name, m});
                             }
                         }
+                        }
                     }
-                }
                 if (c == null) {
                     // Call super class implementation which takes care of
                     // delegating to parent.
@@ -448,6 +448,6 @@ public class APIClassLoaderServiceImpl implements PostConstruct {
         private synchronized void clearBlackList() {
             blacklist.clear();
         }
-
+        
     }
 }

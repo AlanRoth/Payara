@@ -145,17 +145,14 @@ public class EarClassLoader extends ASURLClassLoader
         }
     }
 
-    @Override
     protected String getClassLoaderName() {
         return "EarClassLoader";
     }
 
-    @Override
     protected boolean isWhitelistEnabled() {
         return application.isWhitelistEnabled();
     }
 
-    @Override
     protected boolean isWhiteListed(String className) {
         return DOLUtils.isWhiteListed(application, className);
     }

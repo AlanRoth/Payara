@@ -89,7 +89,7 @@ public class EventsImpl implements Events {
         l.addAll(listeners);
         for (final EventListener listener : l) {
             
-            Method m =null;
+            Method m = null;
             try {
                 // check if the listener is interested with his event.
                 m = listener.getClass().getMethod("event", Event.class);
@@ -105,7 +105,7 @@ public class EventsImpl implements Events {
                 // from getMethod.
                 logger.log(Level.SEVERE, KernelLoggerInfo.exceptionSendEvent, ex);
             }
-            if (m!=null) {
+            if (m != null) {
                 RestrictTo fooBar = m.getParameterTypes()[0].getAnnotation(RestrictTo.class);
                 if (fooBar!=null) {
                     EventTypes interested = EventTypes.create(fooBar.value());

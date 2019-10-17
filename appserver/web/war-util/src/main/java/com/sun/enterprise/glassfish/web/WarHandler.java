@@ -90,11 +90,13 @@ import com.sun.enterprise.config.serverbeans.HttpService;
 import com.sun.enterprise.config.serverbeans.VirtualServer;
 import com.sun.enterprise.deploy.shared.AbstractArchiveHandler;
 import com.sun.enterprise.deployment.Application;
+import com.sun.enterprise.deployment.util.DOLUtils;
 import com.sun.enterprise.deployment.xml.RuntimeTagNames;
 import com.sun.enterprise.security.permissionsxml.CommponentType;
 import com.sun.enterprise.security.permissionsxml.SetPermissionsAction;
 import com.sun.enterprise.util.LocalStringManagerImpl;
 import com.sun.enterprise.util.StringUtils;
+import javax.naming.NamingException;
 
 /**
  * Implementation of the ArchiveHandler for war files.
@@ -166,6 +168,14 @@ public class WarHandler extends AbstractArchiveHandler {
             WebDirContext r = new WebDirContext();
             File base = new File(context.getSource().getURI());
             r.setDocBase(base.getAbsolutePath());
+            
+            try {
+                if (application.isWhitelistEnabled() && !DOLUtils.isResourceWhiteListed(application, r.getNameInNamespace())) {
+                    return null;
+                }
+            } catch(NamingException nex) {
+                logger.log(SEVERE, "Couldn't get name in namespace " + nex.getMessage());
+            }
 
             cloader.setResources(r);
             cloader.addRepository("WEB-INF/classes/", new File(base, "WEB-INF/classes/"));
@@ -615,6 +625,8 @@ public class WarHandler extends AbstractArchiveHandler {
                         versionIdentifier = parser.getElementText();
                     } else if (RuntimeTagNames.PAYARA_WHITELIST_PACKAGE.equals(name)) {
                         application.addWhitelistPackage(parser.getElementText());
+                    } else if (RuntimeTagNames.PAYARA_WHITELIST_RESOURCE.equals(name)) {
+                        application.addWhitelistResource(parser.getElementText());
                     } else {
                         skipSubTree(name);
                     }

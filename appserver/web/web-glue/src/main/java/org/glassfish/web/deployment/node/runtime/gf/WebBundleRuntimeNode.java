@@ -349,6 +349,10 @@ public class WebBundleRuntimeNode extends RuntimeBundleNode<WebBundleDescriptorI
             if (descriptor.getApplication() != null) {
                 descriptor.getApplication().addWhitelistPackage(value);
             }
+        } else if (element.getQName().equals(RuntimeTagNames.PAYARA_WHITELIST_RESOURCE)) {
+            if (descriptor.getApplication() != null) {
+                descriptor.getApplication().addWhitelistResource(value);
+            }
         } else
             super.setElementValue(element, value);
     }

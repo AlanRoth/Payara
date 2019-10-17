@@ -40,6 +40,7 @@
 
 package org.glassfish.weld;
 
+import com.sun.enterprise.deployment.util.DOLUtils;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;

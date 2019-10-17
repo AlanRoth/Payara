@@ -177,6 +177,7 @@ public class Application extends CommonResourceBundleDescriptor
     private final List<Pattern> scanningInclusions = new ArrayList<>();
     private final List<Pattern> scanningExclusions = new ArrayList<>();
     private final Set<String> whitelistPackages = new HashSet<>();
+    private final Set<String> whitelistResources = new HashSet<>();
 
     private boolean initializeInOrder = false;
 
@@ -807,7 +808,7 @@ public class Application extends CommonResourceBundleDescriptor
     }
 
     public boolean isWhitelistEnabled() {
-        return !whitelistPackages.isEmpty();
+        return !whitelistPackages.isEmpty() || !whitelistResources.isEmpty();
     }
 
     public Set<String> getWhitelistPackages() {
@@ -817,7 +818,15 @@ public class Application extends CommonResourceBundleDescriptor
     public void addWhitelistPackage(String aPackage) {
         whitelistPackages.add(aPackage);
     }
-
+    
+    public void addWhitelistResource(String aResource) {
+        whitelistResources.add(aResource);
+    }
+    
+    public Set<String> getWhitelistResources() {
+        return Collections.unmodifiableSet(whitelistResources);
+    }
+    
     /**
      * @return the initializeInOrder flag
      * when the return value is true, the modules inside ear will be loaded
