@@ -70,7 +70,7 @@
             <url>https://oss.sonatype.org/content/repositories/snapshots</url>
         </snapshotRepository>
         <repository>
-            <id>nexus</id>
+            <id>payara-ci</id>
             <url>https://newnexus.payara.fish/repository/Payara-ci/</url>
         </repository>
     </distributionManagement>
