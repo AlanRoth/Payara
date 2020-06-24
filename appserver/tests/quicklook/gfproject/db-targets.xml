@@ -148,7 +148,7 @@
   <echo message="db.class.path = ${db.class.path}"/>
   <sql
     driver="${db.driver}"
-    url="${db.url}"
+    url="${db.url};DB_CLOSE_ON_EXIT=FALSE"
     userid="${db.user}"
     password=""
     src="${sql.file}"
@@ -169,7 +169,7 @@
     
     <sql driver="${db.driver}"
          encoding="utf-8"
-         url="${db.url}"
+         url="${db.url};DB_CLOSE_ON_EXIT=FALSE"
          userid="${db.user}"
          password=""
          classpathref="db.class.path"
@@ -194,7 +194,7 @@
     <echo>password=${db.password}</echo>       
     <sql driver="${db.driver}"
          encoding="utf-8"
-         url="${db.url}"
+         url="${db.url};DB_CLOSE_ON_EXIT=FALSE"
          userid="${db.user}"
          password=""
          classpathref="db.class.path"
