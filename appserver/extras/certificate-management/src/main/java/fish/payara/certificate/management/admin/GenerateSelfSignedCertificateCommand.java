@@ -51,6 +51,7 @@ import com.sun.enterprise.universal.xml.MiniXmlParser;
 import com.sun.enterprise.universal.xml.MiniXmlParserException;
 import com.sun.enterprise.util.SystemPropertyConstants;
 import fish.payara.certificate.management.CertificateManagementUtils;
+import fish.payara.certificate.management.CertificateManagementKeytoolCommands;
 import org.glassfish.api.Param;
 import org.glassfish.api.admin.CommandException;
 import org.glassfish.config.support.TranslatedConfigView;
@@ -206,7 +207,7 @@ public class GenerateSelfSignedCertificateCommand extends LocalDomainCommand {
     private void addToKeystore() throws CommandException {
         // Run keytool command to generate self-signed cert
         KeystoreManager.KeytoolExecutor keytoolExecutor = new KeystoreManager.KeytoolExecutor(
-                CertificateManagementUtils.constructGenerateCertKeytoolCommand(keystore, keystorePassword,
+                CertificateManagementKeytoolCommands.constructGenerateCertKeytoolCommand(keystore, keystorePassword,
                         alias, dn, altnames), 60);
 
         try {
@@ -227,7 +228,7 @@ public class GenerateSelfSignedCertificateCommand extends LocalDomainCommand {
     private void addToTruststore() throws CommandException {
         // Run keytool command to place self-signed cert in truststore
         KeystoreManager.KeytoolExecutor keytoolExecutor = new KeystoreManager.KeytoolExecutor(
-                CertificateManagementUtils.constructImportCertKeytoolCommand(keystore, truststore, keystorePassword,
+                CertificateManagementKeytoolCommands.constructImportCertKeytoolCommand(keystore, truststore, keystorePassword,
                         truststorePassword, alias), 60);
 
         try {
