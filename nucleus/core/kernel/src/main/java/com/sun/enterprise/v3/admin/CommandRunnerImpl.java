@@ -53,7 +53,8 @@ import com.sun.enterprise.universal.glassfish.AdminCommandResponse;
 import com.sun.enterprise.util.AnnotationUtil;
 import com.sun.enterprise.util.LocalStringManagerImpl;
 import com.sun.enterprise.util.StringUtils;
-import com.sun.enterprise.v3.common.XMLContentActionReporter;
+import com.sun.enterprise.admin.report.XMLContentActionReporter;
+import fish.payara.api.admin.config.NameGenerator;
 import org.glassfish.admin.payload.PayloadFilesManager;
 import org.glassfish.api.ActionReport;
 import org.glassfish.api.Param;
@@ -147,8 +148,6 @@ public class CommandRunnerImpl implements CommandRunner {
 
     @Inject @Named("SupplementalCommandExecutorImpl")
     SupplementalCommandExecutor supplementalExecutor;
-
-    private final Map<NameCommandClassPair, String> commandModelEtagMap = new IdentityHashMap<NameCommandClassPair, String>();
 
     @Inject
     private CommandSecurityChecker commandSecurityChecker;
@@ -296,7 +295,7 @@ public class CommandRunnerImpl implements CommandRunner {
             }
             report.setMessage(msg);
             report.setActionExitCode(ActionReport.ExitCode.FAILURE);
-            KernelLoggerInfo.getLogger().fine(msg);
+            logger.fine(msg);
             return null;
         }
 
@@ -307,7 +306,7 @@ public class CommandRunnerImpl implements CommandRunner {
                     + "system,\nbut it has no @Scoped annotation", commandName);
             report.setMessage(msg);
             report.setActionExitCode(ActionReport.ExitCode.FAILURE);
-            KernelLoggerInfo.getLogger().fine(msg);
+            logger.fine(msg);
             command = null;
         } else if (Singleton.class.equals(myScope)) {
             // check that there are no parameters for this command
@@ -320,7 +319,7 @@ public class CommandRunnerImpl implements CommandRunner {
                         + "parameters", commandName);
                 report.setMessage(msg);
                 report.setActionExitCode(ActionReport.ExitCode.FAILURE);
-                KernelLoggerInfo.getLogger().fine(msg);
+                logger.fine(msg);
                 command = null;
             }
         }
@@ -1002,8 +1001,10 @@ public class CommandRunnerImpl implements CommandRunner {
      */
     static void validateParameters(final CommandModel model,
             final ParameterMap parameters) throws MultiException {
+        logger.fine(() -> String.format("validateParameters(model=%s, parameters=%s)", model, parameters));
 
         ParameterMap adds = null; // renamed password parameters
+        boolean autoname = false;
 
         // loop through parameters and make sure they are
         // part of the Param declared field
@@ -1024,7 +1025,9 @@ public class CommandRunnerImpl implements CommandRunner {
                 // This is an old prefixed password parameter being passed in.
                 // Strip the prefix and lowercase the name
                 key = key.substring(OLD_PASSWORD_PARAM_PREFIX.length()).toLowerCase(Locale.ENGLISH);
-                if (adds == null) adds = new ParameterMap();
+                if (adds == null) {
+                    adds = new ParameterMap();
+                }
                 adds.add(key, entry.getValue().get(0));
             }
 
@@ -1043,7 +1046,17 @@ public class CommandRunnerImpl implements CommandRunner {
             if (!validOption) {
                 throw new MultiException(new IllegalArgumentException(" Invalid option: " + key));
             }
+
+            if ((key.equals("autoname") || key.equals("a"))
+                    && entry.getValue().get(0).equalsIgnoreCase("true")) {
+                autoname = true;
+            }
         }
+
+        if (!parameters.containsKey("DEFAULT") && autoname) {
+            parameters.add("DEFAULT", NameGenerator.generateName());
+        }
+
         parameters.mergeAll(adds);
     }
 
@@ -1144,9 +1157,9 @@ public class CommandRunnerImpl implements CommandRunner {
                 job.getEventBroker(),
                 job.getId());
         context.setSubject(subject);
-        List<RuntimeType> runtimeTypes = new ArrayList<RuntimeType>();
+        List<RuntimeType> runtimeTypes = new ArrayList<>();
         FailurePolicy fp = null;
-        Set<CommandTarget> targetTypesAllowed = new HashSet<CommandTarget>();
+        Set<CommandTarget> targetTypesAllowed = new HashSet<>();
         ActionReport.ExitCode preSupplementalReturn = ActionReport.ExitCode.SUCCESS;
         ActionReport.ExitCode postSupplementalReturn = ActionReport.ExitCode.SUCCESS;
         CommandRunnerProgressHelper progressHelper =
@@ -1162,9 +1175,9 @@ public class CommandRunnerImpl implements CommandRunner {
                     "The GlassFish environment does not have any clusters or instances present; Replication is turned off"));
         }
         try {
-            //Get list of suplemental commands
-            Collection<SupplementalCommand> suplementalCommands =
-                    supplementalExecutor.listSuplementalCommands(model.getCommandName());
+            //Get list of supplemental commands
+            Collection<SupplementalCommand> supplementalCommands =
+                    supplementalExecutor.listSupplementalCommands(model.getCommandName());
             try {
                 /*
                  * Extract any uploaded files and build a map from parameter names
@@ -1357,6 +1370,7 @@ public class CommandRunnerImpl implements CommandRunner {
                         targetTypesAllowed.add(CommandTarget.STANDALONE_INSTANCE);
                         targetTypesAllowed.add(CommandTarget.CLUSTER);
                         targetTypesAllowed.add(CommandTarget.CONFIG);
+                        targetTypesAllowed.add(CommandTarget.DEPLOYMENT_GROUP);
                     }
 
                     // If the target is "server" and the command is not marked for DAS,
@@ -1435,7 +1449,7 @@ public class CommandRunnerImpl implements CommandRunner {
 
                     //Set there progress statuses
                     if (!fromCheckpoint) {
-                        for (SupplementalCommand supplementalCommand : suplementalCommands) {
+                        for (SupplementalCommand supplementalCommand : supplementalCommands) {
                             progressHelper.addProgressStatusToSupplementalCommand(supplementalCommand);
                         }
                     }
@@ -1460,7 +1474,7 @@ public class CommandRunnerImpl implements CommandRunner {
                     if (!fromCheckpoint) {
                         logger.fine(adminStrings.getLocalString("dynamicreconfiguration.diagnostics.presupplemental",
                                 "Command execution stage 2 : Call pre supplemental commands for {0}", inv.name()));
-                        preSupplementalReturn = supplementalExecutor.execute(suplementalCommands,
+                        preSupplementalReturn = supplementalExecutor.execute(supplementalCommands,
                                 Supplemental.Timing.Before, context, parameters, ufm.optionNameToFileMap());
                         if (preSupplementalReturn.equals(ActionReport.ExitCode.FAILURE)) {
                             report.setActionExitCode(preSupplementalReturn);
@@ -1491,7 +1505,7 @@ public class CommandRunnerImpl implements CommandRunner {
                         //Run Supplemental commands that have to be run after this command on this instance type
                         logger.fine(adminStrings.getLocalString("dynamicreconfiguration.diagnostics.postsupplemental",
                                 "Command execution stage 4 : Call post supplemental commands for {0}", inv.name()));
-                        postSupplementalReturn = supplementalExecutor.execute(suplementalCommands,
+                        postSupplementalReturn = supplementalExecutor.execute(supplementalCommands,
                                 Supplemental.Timing.After, context, parameters, ufm.optionNameToFileMap());
                         if (postSupplementalReturn.equals(ActionReport.ExitCode.FAILURE)) {
                             report.setActionExitCode(postSupplementalReturn);
@@ -1599,7 +1613,7 @@ public class CommandRunnerImpl implements CommandRunner {
                                 report.getActionExitCode()).equals(ActionReport.ExitCode.FAILURE)) {
                             logger.fine(adminStrings.getLocalString("dynamicreconfiguration.diagnostics.afterreplsupplemental",
                                     "Command execution stage 5 : Call post-replication supplemental commands for {0}", inv.name()));
-                            ActionReport.ExitCode afterReplicationSupplementalReturn = supplementalExecutor.execute(suplementalCommands,
+                            ActionReport.ExitCode afterReplicationSupplementalReturn = supplementalExecutor.execute(supplementalCommands,
                                     Supplemental.Timing.AfterReplication, context, parameters, ufm.optionNameToFileMap());
                             if (afterReplicationSupplementalReturn.equals(ActionReport.ExitCode.FAILURE)) {
                                 report.setActionExitCode(afterReplicationSupplementalReturn);
@@ -1636,7 +1650,7 @@ public class CommandRunnerImpl implements CommandRunner {
     }
 
     private Map<String,Object> buildEnvMap(final ParameterMap params) {
-        final Map<String,Object> result = new HashMap<String,Object>();
+        final Map<String,Object> result = new HashMap<>();
         for (Map.Entry<String,List<String>> entry : params.entrySet()) {
             final List<String> values = entry.getValue();
             if (values != null && values.size() > 0) {
@@ -1663,8 +1677,8 @@ public class CommandRunnerImpl implements CommandRunner {
 
         private class NameListerPair {
 
-            private String nameRegexp;
-            private AdminCommandEventBroker.AdminCommandListener listener;
+            private final String nameRegexp;
+            private final AdminCommandEventBroker.AdminCommandListener listener;
 
             public NameListerPair(String nameRegexp, AdminCommandListener listener) {
                 this.nameRegexp = nameRegexp;
@@ -1684,7 +1698,7 @@ public class CommandRunnerImpl implements CommandRunner {
         protected ProgressStatus progressStatusChild;
         protected boolean isManagedJob;
         protected boolean isNotify;
-        private   List<NameListerPair> nameListerPairs = new ArrayList<NameListerPair>();
+        private final List<NameListerPair> nameListerPairs = new ArrayList<>();
 
         private ExecutionContext(String scope, String name, ActionReport report, Subject subject, boolean isNotify) {
             this.scope = scope;
@@ -1996,8 +2010,8 @@ public class CommandRunnerImpl implements CommandRunner {
     /** Works as a key in ETag cache map
      */
     private static class NameCommandClassPair {
-        private String name;
-        private Class<? extends AdminCommand> clazz;
+        private final String name;
+        private final Class<? extends AdminCommand> clazz;
         private int hash; //immutable, we can cache it
 
         public NameCommandClassPair(String name, Class<? extends AdminCommand> clazz) {
@@ -2097,7 +2111,7 @@ public class CommandRunnerImpl implements CommandRunner {
              * Prepare the map of command options names to corresponding
              * uploaded files.
              */
-            optionNameToFileMap = new MultiMap<String, File>();
+            optionNameToFileMap = new MultiMap<>();
             for (Map.Entry<File, Properties> e : payloadFiles.entrySet()) {
                 final String optionName = e.getValue().getProperty("data-request-name");
                 if (optionName != null) {

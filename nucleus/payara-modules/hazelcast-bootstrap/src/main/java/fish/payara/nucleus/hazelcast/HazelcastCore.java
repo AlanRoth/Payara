@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) [2016-2019] Payara Foundation and/or its affiliates. All rights reserved.
+ * Copyright (c) [2016-2020] Payara Foundation and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -39,6 +39,8 @@
  */
 package fish.payara.nucleus.hazelcast;
 
+import static java.lang.String.valueOf;
+
 import com.hazelcast.cache.impl.HazelcastServerCachingProvider;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.ConfigLoader;
@@ -57,27 +59,9 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.kubernetes.KubernetesProperties;
 import com.hazelcast.nio.serialization.Serializer;
 import com.hazelcast.nio.serialization.StreamSerializer;
-import com.sun.enterprise.config.serverbeans.Cluster;
 import com.sun.enterprise.util.Utility;
 import fish.payara.nucleus.events.HazelcastEvents;
 import fish.payara.nucleus.hazelcast.contextproxy.CachingProviderProxy;
-import java.beans.PropertyChangeEvent;
-import java.io.File;
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.annotation.PostConstruct;
-import javax.cache.spi.CachingProvider;
-import javax.inject.Inject;
-import javax.inject.Named;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
 import org.glassfish.api.StartupRunLevel;
 import org.glassfish.api.admin.ServerEnvironment;
 import org.glassfish.api.admin.ServerEnvironment.Status;
@@ -93,7 +77,25 @@ import org.jvnet.hk2.annotations.Optional;
 import org.jvnet.hk2.annotations.Service;
 import org.jvnet.hk2.config.ConfigListener;
 import org.jvnet.hk2.config.Transactions;
+import org.jvnet.hk2.config.UnprocessedChangeEvent;
 import org.jvnet.hk2.config.UnprocessedChangeEvents;
+
+import javax.annotation.PostConstruct;
+import javax.cache.spi.CachingProvider;
+import javax.inject.Inject;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import java.beans.PropertyChangeEvent;
+import java.io.File;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * The core class for using Hazelcast in Payara
@@ -117,6 +119,8 @@ public class HazelcastCore implements EventListener, ConfigListener {
     private boolean booted=false;
     private String memberName;
     private String memberGroup;
+
+    private boolean datagridEncryptionValue;
 
     @Inject
     Events events;
@@ -143,23 +147,12 @@ public class HazelcastCore implements EventListener, ConfigListener {
     @Inject
     Transactions transactions;
 
-    private static final ThreadLocal<Boolean> thrLocalDisabled = new ThreadLocal<Boolean>() {
-        @Override
-        protected Boolean initialValue() {
-            return false;
-        }
-    };
-
     /**
      * Returns the version of the object that has been instantiated.
      * @return null if an instance of {@link HazelcastCore} has not been created
      */
     public static HazelcastCore getCore() {
         return theCore;
-    }
-
-    public static void setThreadLocalDisabled(boolean tf) {
-        thrLocalDisabled.set(tf);
     }
 
     @PostConstruct
@@ -177,8 +170,13 @@ public class HazelcastCore implements EventListener, ConfigListener {
             memberName = context.getInstanceName();
             memberGroup = nodeConfig.getMemberGroup();
         }
+
+        datagridEncryptionValue = Boolean.parseBoolean(configuration.getDatagridEncryptionEnabled());
+        if (datagridEncryptionValue) {
+            Logger.getLogger(HazelcastCore.class.getName()).log(Level.INFO, "Data grid encryption is enabled");
+        }
     }
-    
+
     /**
      * Returns the Hazelcast name of the instance
      * <p>
@@ -252,7 +250,7 @@ public class HazelcastCore implements EventListener, ConfigListener {
      * @return Whether Hazelcast is currently enabled
      */
     public boolean isEnabled() {
-        return enabled && !thrLocalDisabled.get();
+        return enabled;
     }
 
     @Override
@@ -350,7 +348,7 @@ public class HazelcastCore implements EventListener, ConfigListener {
                 config.setLicenseKey(configuration.getLicenseKey());
                 config.setLiteMember(Boolean.parseBoolean(nodeConfig.getLite()));
                 
-                
+
                 // set group config
                 GroupConfig gc = config.getGroupConfig();
                 gc.setName(configuration.getClusterGroupName());
@@ -412,6 +410,17 @@ public class HazelcastCore implements EventListener, ConfigListener {
             memberAddressProviderConfig.setImplementation(new MemberAddressPicker(env, configuration, nodeConfig));
         }
         
+        int port = Integer.valueOf(configuration.getStartPort());
+
+        String configSpecificPort = nodeConfig.getConfigSpecificDataGridStartPort();
+        if (configSpecificPort != null && !configSpecificPort.isEmpty()) {
+            // Setting it equal to zero will be the same as null or empty (to maintain backwards compatibility)
+            int configSpecificPortInt = Integer.parseInt(configSpecificPort);
+            if (configSpecificPortInt != 0) {
+                port = configSpecificPortInt;
+            }
+        }
+        
         String discoveryMode = configuration.getDiscoveryMode();
         if (discoveryMode.startsWith("tcpip")) {
             TcpIpConfig tConfig = config.getNetworkConfig().getJoin().getTcpIpConfig();
@@ -433,17 +442,18 @@ public class HazelcastCore implements EventListener, ConfigListener {
             config.getNetworkConfig().getJoin().getKubernetesConfig().setEnabled(true)
                     .setProperty(KubernetesProperties.NAMESPACE.key(), configuration.getKubernetesNamespace())
                     .setProperty(KubernetesProperties.SERVICE_NAME.key(), configuration.getKubernetesServiceName())
-                    .setProperty(KubernetesProperties.SERVICE_PORT.key(), configuration.getStartPort());
+                    .setProperty(KubernetesProperties.SERVICE_PORT.key(), valueOf(port));
         } else {
             //build the domain discovery config
             config.setProperty("hazelcast.discovery.enabled", "true");
             config.getNetworkConfig().getJoin().getDiscoveryConfig().setDiscoveryServiceProvider(new DomainDiscoveryServiceProvider());            
             config.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);            
         }
-        int port = Integer.valueOf(configuration.getStartPort());
+               
         if (env.isDas() && !env.isMicro()) {
             port = Integer.valueOf(configuration.getDasPort());
         }
+        
         config.getNetworkConfig().setPort(port);
         config.getNetworkConfig().setPortAutoIncrement("true".equalsIgnoreCase(configuration.getAutoIncrementPort()));
     }
@@ -466,13 +476,12 @@ public class HazelcastCore implements EventListener, ConfigListener {
      * Starts Hazelcast if not already enabled
      */
     private synchronized void bootstrapHazelcast() {
-        if (!booted && enabled && !thrLocalDisabled.get()) {
+        if (!booted && isEnabled()) {
             Config config = buildConfiguration();
             theInstance = Hazelcast.newHazelcastInstance(config);
             if (env.isMicro()) {
                 if (Boolean.valueOf(configuration.getGenerateNames()) || memberName == null) {
-                    NameGenerator gen = new NameGenerator();
-                    memberName = gen.generateName();
+                    memberName = PayaraMicroNameGenerator.generateName();
                     Set<com.hazelcast.core.Member> clusterMembers = theInstance.getCluster().getMembers();
 
                     // If the instance name was generated, we need to compile a list of all the instance names in use within 
@@ -489,7 +498,7 @@ public class HazelcastCore implements EventListener, ConfigListener {
                     // If our generated name is already in use within the instance group, either generate a new one or set the 
                     // name to this instance's UUID if there are no more unique generated options left
                     if (takenNames.contains(memberName)) {
-                        memberName = gen.generateUniqueName(takenNames,
+                        memberName = PayaraMicroNameGenerator.generateUniqueName(takenNames,
                                 theInstance.getCluster().getLocalMember().getUuid());
                         theInstance.getCluster().getLocalMember().setStringAttribute(
                                 HazelcastCore.INSTANCE_ATTRIBUTE, memberName);
@@ -549,6 +558,22 @@ public class HazelcastCore implements EventListener, ConfigListener {
 
     @Override
     public UnprocessedChangeEvents changed(PropertyChangeEvent[] pces) {
-        return null;
+        List<UnprocessedChangeEvent> unprocessedChanges = new ArrayList<>();
+        for (PropertyChangeEvent pce : pces) {
+            if (pce.getPropertyName().equalsIgnoreCase("datagrid-encryption-enabled")) {
+                unprocessedChanges.add(new UnprocessedChangeEvent(pce, "Hazelcast encryption settings changed"));
+            }
+        }
+
+        if (unprocessedChanges.isEmpty()) {
+            return null;
+        }
+        return new UnprocessedChangeEvents(unprocessedChanges);
+    }
+
+    public boolean isDatagridEncryptionEnabled() {
+        // We want to return the value as it was at boot time here to prevent the server changing encryption behaviour
+        // without a restart
+        return datagridEncryptionValue;
     }
 }

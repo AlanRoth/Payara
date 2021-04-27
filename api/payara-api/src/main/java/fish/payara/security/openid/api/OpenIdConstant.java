@@ -1,7 +1,7 @@
 /*
  *  DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  * 
- *  Copyright (c) [2018] Payara Foundation and/or its affiliates. All rights reserved.
+ *  Copyright (c) [2018-2019] Payara Foundation and/or its affiliates. All rights reserved.
  * 
  *  The contents of this file are subject to the terms of either the GNU
  *  General Public License Version 2 only ("GPL") or the Common Development
@@ -68,6 +68,7 @@ public interface OpenIdConstant {
     public static final String LOGIN_HINT = "login_hint";
     public static final String ACR_VALUES = "acr_values";
     public static final String CODE = "code";
+    public static final String POST_LOGOUT_REDIRECT_URI = "post_logout_redirect_uri";
 
     // Access Token request/response parameters
     public static final String GRANT_TYPE = "grant_type";
@@ -82,7 +83,10 @@ public interface OpenIdConstant {
     public static final String ERROR_DESCRIPTION_PARAM = "error_description";
 
     //claims
+    public static final String ISSUER_IDENTIFIER = "iss";
     public static final String SUBJECT_IDENTIFIER = "sub";
+    public static final String EXPIRATION_IDENTIFIER = "exp";
+    public static final String AUDIENCE = "aud";
     public static final String AUTHORIZED_PARTY = "azp";
     public static final String ACCESS_TOKEN_HASH = "at_hash";
 
@@ -90,6 +94,7 @@ public interface OpenIdConstant {
     public static final String AUTHORIZATION_ENDPOINT = "authorization_endpoint";
     public static final String TOKEN_ENDPOINT = "token_endpoint";
     public static final String USERINFO_ENDPOINT = "userinfo_endpoint";
+    public static final String END_SESSION_ENDPOINT = "end_session_endpoint";
     public static final String REGISTRATION_ENDPOINT = "registration_endpoint";
     public static final String JWKS_URI = "jwks_uri";
     
@@ -157,5 +162,7 @@ public interface OpenIdConstant {
     // phone scope claims
     public static final String PHONE_NUMBER = "phone_number";
     public static final String PHONE_NUMBER_VERIFIED = "phone_number_verified";
-    
+
+    // Original user Request
+    public static final String ORIGINAL_REQUEST = "oidc.original.request";
 }

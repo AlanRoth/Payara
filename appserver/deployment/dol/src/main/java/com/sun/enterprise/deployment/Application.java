@@ -37,7 +37,7 @@
  * only if the new code is made subject to such option by the copyright
  * holder.
  */
-// Portions Copyright [2016-2019] [Payara Foundation and/or its affiliates]
+// Portions Copyright [2016-2020] [Payara Foundation and/or its affiliates]
 
 package com.sun.enterprise.deployment;
 
@@ -79,9 +79,6 @@ import org.glassfish.hk2.api.ServiceLocator;
 import org.glassfish.internal.api.Globals;
 import org.glassfish.security.common.Role;
 
-import com.google.common.base.Function;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.ImmutableSet;
 import com.sun.enterprise.deployment.node.ApplicationNode;
 import com.sun.enterprise.deployment.runtime.application.wls.ApplicationParam;
 import com.sun.enterprise.deployment.runtime.common.SecurityRoleMapping;
@@ -98,6 +95,8 @@ import com.sun.enterprise.deployment.util.ComponentVisitor;
 import com.sun.enterprise.deployment.util.DOLUtils;
 import com.sun.enterprise.util.LocalStringManagerImpl;
 import com.sun.enterprise.util.StringUtils;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Objects of this type encapsulate the data and behaviour of a J2EE
@@ -276,14 +275,21 @@ public class Application extends CommonResourceBundleDescriptor
      * @return the application
      */
     public static Application createVirtualApplication(String name, ModuleDescriptor<BundleDescriptor> newModule) {
-
+                
         // create a new empty application
         Application application = createApplication();
+        String webBundleRealmName = null;
 
         application.setVirtual(true);
         if (name == null && newModule != null && newModule.getDescriptor() != null) {
             name = newModule.getDescriptor().getDisplayName();
 
+        }
+        if (newModule.getDescriptor() instanceof WebBundleDescriptor) {
+            WebBundleDescriptor webBundleDesc = (WebBundleDescriptor) newModule.getDescriptor();
+            if (webBundleDesc.getLoginConfiguration() != null) {
+                webBundleRealmName = webBundleDesc.getLoginConfiguration().getRealmName();
+            }
         }
         String untaggedName = VersioningUtils.getUntaggedName(name);
         if (name != null) {
@@ -301,6 +307,10 @@ public class Application extends CommonResourceBundleDescriptor
 			}
 			application.addModule(newModule);
 		}
+
+        if (application.getRealm() == null && webBundleRealmName != null) {
+            application.setRealm(webBundleRealmName);
+        }
 
         return application;
     }
@@ -796,8 +806,7 @@ public class Application extends CommonResourceBundleDescriptor
     }
 
     public void addScanningInclusions(List<String> inclusions, String libDir) {
-        this.scanningInclusions.addAll(FluentIterable.from(inclusions)
-                .transform(new WildcardToRegex(libDir)).toList());
+        this.scanningInclusions.addAll(inclusions.stream().map(new WildcardToRegex(libDir)).collect(Collectors.toList()));
     }
 
     public void addScanningExclusions(List<String> exclusions) {
@@ -805,8 +814,7 @@ public class Application extends CommonResourceBundleDescriptor
     }
 
     public void addScanningExclusions(List<String> exclusions, String libDir) {
-        this.scanningExclusions.addAll(FluentIterable.from(exclusions)
-                .transform(new WildcardToRegex(libDir)).toList());
+        this.scanningExclusions.addAll(exclusions.stream().map(new WildcardToRegex(libDir)).collect(Collectors.toList()));
     }
 
     public boolean isWhitelistEnabled() {
@@ -814,7 +822,7 @@ public class Application extends CommonResourceBundleDescriptor
     }
 
     public Set<String> getWhitelistPackages() {
-        return ImmutableSet.copyOf(whitelistPackages);
+        return Collections.unmodifiableSet(whitelistPackages);
     }
 
     public void addWhitelistPackage(String aPackage) {

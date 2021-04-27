@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2017-2018 Payara Foundation and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017-2020 Payara Foundation and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -39,14 +39,17 @@
  */
 package fish.payara.nucleus.requesttracing.store;
 
-import com.hazelcast.core.MultiMap;
 import fish.payara.notification.requesttracing.RequestTrace;
 import fish.payara.nucleus.requesttracing.store.strategy.LongestTraceStorageStrategy;
 import fish.payara.nucleus.requesttracing.store.strategy.ReservoirTraceStorageStrategy;
 import fish.payara.nucleus.requesttracing.store.strategy.TraceStorageStrategy;
 import fish.payara.nucleus.store.ClusteredStore;
 import org.glassfish.api.event.Events;
+import org.glassfish.hk2.api.ServiceHandle;
 import org.glassfish.internal.api.Globals;
+
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * A factory for generating a
@@ -84,10 +87,15 @@ public class RequestTraceStoreFactory {
         }
 
         // Get a clustered store if possible
-        ClusteredStore clusteredStore = Globals.getDefaultHabitat().getService(ClusteredStore.class);
+        ClusteredStore clusteredStore = null;
+        ServiceHandle<ClusteredStore> serviceHandle = Globals.getDefaultHabitat().getServiceHandle(ClusteredStore.class);
+        if (serviceHandle != null && serviceHandle.isActive()) {
+            clusteredStore = serviceHandle.getService();
+        }
+
         if (clusteredStore != null && clusteredStore.isEnabled()) {
-            MultiMap<String, RequestTrace> store = (MultiMap) clusteredStore.getMultiMap(storeName);
-            return new ClusteredRequestTraceStore(store, clusteredStore.getInstanceId(), strategy);
+            Map<UUID, RequestTrace> store = (Map) clusteredStore.getMap(storeName);
+            return new ClusteredRequestTraceStore(store, strategy);
         }
 
         // Otherwise get a local store

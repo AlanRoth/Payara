@@ -40,14 +40,14 @@
     holder.
 
 -->
-<!--"Portions Copyright [2019] [Payara Foundation and/or its affiliates]" -->
+<!--"Portions Copyright [2020] [Payara Foundation and/or its affiliates]" -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.glassfish.main.admin</groupId>
+        <groupId>fish.payara.server.internal.admin</groupId>
         <artifactId>nucleus-admin</artifactId>
-        <version>5.193-SNAPSHOT</version>
+        <version>5.2020.5-SNAPSHOT</version>
     </parent>
 
     <artifactId>nucleus-domain</artifactId>
@@ -60,7 +60,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>fish.payara.ejb.http</groupId>
+            <groupId>fish.payara.server.internal.ejb</groupId>
             <artifactId>ejb-http-endpoint</artifactId>
             <version>${project.version}</version>
             <type>war</type>
@@ -75,19 +75,28 @@
                     <includeEmptyDirs>true</includeEmptyDirs>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>xml-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>validate-xml-files</id>
+                    </execution>
+                </executions>
+            </plugin>
 
             <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
                         <id>unpack</id>
-                        <phase>validate</phase>
+                        <phase>generate-resources</phase>
                         <goals>
                             <goal>unpack</goal>
                         </goals>
                         <configuration>
                             <artifactItems>
-                                <!-- The index.html for the "docroot" application, 
+                                <!-- The index.html for the "docroot" application,
                                     saying Payara is running etc when nothing is deployed to root. -->
                                 <artifactItem>
                                     <groupId>org.glassfish.docs</groupId>
@@ -99,12 +108,12 @@
                                 </artifactItem>
 
                                 <artifactItem>
-                                    <groupId>fish.payara.ejb.http</groupId>
+                                    <groupId>fish.payara.server.internal.ejb</groupId>
                                     <artifactId>ejb-http-endpoint</artifactId>
                                     <version>${project.version}</version>
                                     <type>war</type>
                                     <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/endpoints/ejb-invoker</outputDirectory>
+                                    <outputDirectory>${project.build.directory}/endpoints/__ejb-invoker</outputDirectory>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

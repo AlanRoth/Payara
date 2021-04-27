@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) [2018] Payara Foundation and/or its affiliates. All rights reserved.
+ * Copyright (c) [2018-2019] Payara Foundation and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -39,27 +39,24 @@
  */
 package fish.payara.microprofile.openapi.impl.rest.app.service;
 
+import fish.payara.microprofile.openapi.api.OpenAPIBuildException;
+import fish.payara.microprofile.openapi.impl.OpenApiService;
+import fish.payara.microprofile.openapi.impl.model.OpenAPIImpl;
 import static fish.payara.microprofile.openapi.impl.rest.app.OpenApiApplication.APPLICATION_YAML;
-import static java.util.logging.Level.WARNING;
-import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
-import static javax.ws.rs.core.Response.Status.FORBIDDEN;
-
 import java.io.IOException;
+import static java.util.logging.Level.WARNING;
 import java.util.logging.Logger;
-
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
+import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
-
+import static javax.ws.rs.core.Response.Status.FORBIDDEN;
 import org.eclipse.microprofile.openapi.models.OpenAPI;
-
-import fish.payara.microprofile.openapi.api.OpenAPIBuildException;
-import fish.payara.microprofile.openapi.impl.OpenApiService;
-import fish.payara.microprofile.openapi.impl.model.OpenAPIImpl;
 
 @Path("/")
 public class OpenApiResource {
@@ -68,19 +65,20 @@ public class OpenApiResource {
 
     @GET
     @Produces({ APPLICATION_YAML, APPLICATION_JSON })
-    public Response getResponse(@Context HttpServletResponse response) throws IOException {
+    public Response getResponse(@Context HttpServletRequest request, @Context HttpServletResponse response) throws IOException {
+        OpenApiService openApiService = OpenApiService.getInstance();
 
         // If the server is disabled, throw an error
-        if (!OpenApiService.getInstance().isEnabled()) {
-            response.sendError(FORBIDDEN.getStatusCode(), "OpenAPI Service is disabled.");
+        if (!openApiService.isEnabled()) {
+            response.sendError(FORBIDDEN.getStatusCode(), "MicroProfile OpenAPI Service is disabled.");
             return Response.status(FORBIDDEN).build();
         }
 
         // Get the OpenAPI document
         OpenAPI document = null;
         try {
-            document = OpenApiService.getInstance().getDocument();
-        } catch (OpenAPIBuildException ex) {
+            document = openApiService.getDocument();
+        } catch (OpenAPIBuildException | IOException ex) {
             LOGGER.log(WARNING, "OpenAPI document creation failed.", ex);
         }
 

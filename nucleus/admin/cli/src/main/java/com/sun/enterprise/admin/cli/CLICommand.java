@@ -50,6 +50,7 @@ import com.sun.enterprise.admin.util.TokenValue;
 import com.sun.enterprise.admin.util.TokenValueSet;
 import com.sun.enterprise.universal.glassfish.ASenvPropertyReader;
 import com.sun.enterprise.universal.i18n.LocalStringsImpl;
+import fish.payara.api.admin.config.NameGenerator;
 import java.io.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
@@ -926,7 +927,14 @@ public abstract class CLICommand implements PostConstruct {
         /*
          * Check for missing options and operands.
          */
-      
+        int operandMin = 0;
+        int operandMax = 0;
+        ParamModel operandParam = getOperandModel();
+        if (operandParam != null) {
+            operandMin = operandParam.getParam().optional() ? 0 : 1;
+            operandMax = operandParam.getParam().multiple() ? Integer.MAX_VALUE : 1;
+        }
+
         if (programOpts.isInteractive()) {
             try {
                 buildTerminal();   
@@ -965,35 +973,19 @@ public abstract class CLICommand implements PostConstruct {
                     throw new CommandValidationException(strings.get("missingOptions", name));
                 }
 
-                int operandMin = 0;
-                int operandMax = 0;
-                ParamModel operandParam = getOperandModel();
-                if (operandParam != null) {
-                    operandMin = operandParam.getParam().optional() ? 0 : 1;
-                    operandMax = operandParam.getParam().multiple() ? Integer.MAX_VALUE : 1;
-                }
-
                 if (operands.size() < operandMin && lineReader != null) {
-                    String val = lineReader.readLine(strings.get("operandPrompt", operandParam.getName()));
+                    String val = null;
+                    if (programOpts.isAutoName()) {
+                        val = NameGenerator.generateName();
+                    }
+
+                    if (!ok(val)) {
+                        val = lineReader.readLine(strings.get("operandPrompt", operandParam.getName()));
+                    }
+
                     if (ok(val)) {
                         operands = new ArrayList<>();
                         operands.add(val);
-                    }
-                }
-                if (operands.size() < operandMin) {
-                    throw new CommandValidationException(strings.get("notEnoughOperands", name, operandParam.getType()));
-                }
-                if (operands.size() > operandMax) {
-                    switch (operandMax) {
-                        case 0:
-                            throw new CommandValidationException(
-                                    strings.get("noOperandsAllowed", name));
-                        case 1:
-                            throw new CommandValidationException(
-                                    strings.get("tooManyOperands1", name));
-                        default:
-                            throw new CommandValidationException(
-                                    strings.get("tooManyOperands", name, operandMax));
                     }
                 }
             } catch (UserInterruptException | EndOfFileException e) {
@@ -1001,7 +993,40 @@ public abstract class CLICommand implements PostConstruct {
             } finally {
                 closeTerminal();
             }
+        } else {
+            // Check if we're missing an operand even if not interactive in case we want to generate it.
+            if (operands.size() < operandMin) {
+                String val = null;
+                if (programOpts.isAutoName()) {
+                    val = NameGenerator.generateName();
+                }
+
+                if (ok(val)) {
+                    operands = new ArrayList<>();
+                    operands.add(val);
+                }
+            }
         }
+
+        // Validate that we have the required operands
+        if (operands.size() < operandMin) {
+            throw new CommandValidationException(strings.get("notEnoughOperands", name,
+                    operandParam.getType()));
+        }
+        if (operands.size() > operandMax) {
+            switch (operandMax) {
+                case 0:
+                    throw new CommandValidationException(
+                            strings.get("noOperandsAllowed", name));
+                case 1:
+                    throw new CommandValidationException(
+                            strings.get("tooManyOperands1", name));
+                default:
+                    throw new CommandValidationException(
+                            strings.get("tooManyOperands", name, operandMax));
+            }
+        }
+
         initializeCommandPassword();
     }
 
@@ -1018,13 +1043,18 @@ public abstract class CLICommand implements PostConstruct {
         // "DEFAULT"
         options.set("DEFAULT", operands);
 
-        // if command has a "terse" option, set it from ProgramOptions
+        // if command has a "terse" or "extraterse" option, set it from ProgramOptions
         if (commandModel.getModelFor("terse") != null){
             options.set("terse", Boolean.toString(programOpts.isTerse()));
         }
+        if (commandModel.getModelFor("extraterse") != null){
+            options.set("extraterse", Boolean.toString(programOpts.isExtraTerse()));
+        }
+        if (commandModel.getModelFor("autoname") != null) {
+            options.set("autoname", Boolean.toString(programOpts.isAutoName()));
+        }
         // initialize the injector.
-        InjectionResolver<Param> injector =
-                    new MapInjectionResolver(commandModel, options);
+        InjectionResolver<Param> injector = new MapInjectionResolver(commandModel, options);
 
         // inject
         try {
@@ -1213,6 +1243,9 @@ public abstract class CLICommand implements PostConstruct {
      * @return 
      */
     protected char[] readPassword(String prompt) {
+        if (!programOpts.isInteractive()) {
+            return null;
+        }
         try {
             buildTerminal();
             buildLineReader();

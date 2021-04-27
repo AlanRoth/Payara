@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
@@ -141,10 +142,11 @@ public class PayaraMicroRuntimeImpl implements PayaraMicroRuntime  {
         
         Map<String,Future<ClusterCommandResult>> commandResult = instanceService.executeClusteredASAdmin(command, args);
         Map<InstanceDescriptor, Future<? extends ClusterCommandResult>> result = new HashMap<>(commandResult.size());
-        for (String uuid : commandResult.keySet()) {
+        for (Entry<String,Future<ClusterCommandResult>> entry : commandResult.entrySet()) {
+            String uuid = entry.getKey();
             InstanceDescriptor id = instanceService.getDescriptor(uuid);
             if (id != null) {
-                result.put(id, commandResult.get(uuid));
+                result.put(id, entry.getValue());
             }
         }
         return result;
@@ -169,10 +171,11 @@ public class PayaraMicroRuntimeImpl implements PayaraMicroRuntime  {
         
         Map<String,Future<ClusterCommandResult>> commandResult = instanceService.executeClusteredASAdmin(memberUUIDs,command, args);
         Map<InstanceDescriptor, Future<? extends ClusterCommandResult>> result = new HashMap<>(commandResult.size());
-        for (String uuid : commandResult.keySet()) {
+        for (Entry<String,Future<ClusterCommandResult>> entry : commandResult.entrySet()) {
+            String uuid = entry.getKey();
             InstanceDescriptor id = instanceService.getDescriptor(uuid);
             if (id != null) {
-                result.put(id, commandResult.get(uuid));
+                result.put(id, entry.getValue());
             }
         }
         return result;
@@ -185,18 +188,23 @@ public class PayaraMicroRuntimeImpl implements PayaraMicroRuntime  {
      * @param <T> The Type of the Callable
      * @param callable The Callable object to run
      * @return 
+     * @deprecated This method has an undefined ClassLoader and is unusable by a user, 
+     * as it only operates on server ClassLoader rather than on application ClassLoader <br/>
+     * {It will be removed in the upcoming releases}. 
      */
     @Override
+    @Deprecated
     public <T extends Serializable> Map<InstanceDescriptor, Future<T>> run (Callable<T> callable) {
         
         // NEEDS TO HANDLE THE CASE FOR LOCAL RUNNING IF NO CLUSTER ENABLED
         
         Map<String, Future<T>> runCallable = instanceService.runCallable(callable);
         Map<InstanceDescriptor, Future<T>> result = new HashMap<>(runCallable.size());
-        for (String uuid : runCallable.keySet()) {
+        for (Entry<String, Future<T>> entry : runCallable.entrySet()) {
+            String uuid = entry.getKey();
             InstanceDescriptor id = instanceService.getDescriptor(uuid);
             if (id != null) {
-                result.put(id, runCallable.get(uuid));
+                result.put(id, entry.getValue());
             }
         }
         return result;
@@ -210,8 +218,14 @@ public class PayaraMicroRuntimeImpl implements PayaraMicroRuntime  {
      * @param members The collection of members to run the callable on
      * @param callable The Callable object to run
      * @return 
+     * 
+     * @deprecated This method has an undefined ClassLoader and is unusable by a user, 
+     * as it only operates on server ClassLoader rather than on application ClassLoader <br/>
+     * {It will be removed in the upcoming releases}. 
+     * 
      */
     @Override
+    @Deprecated
     public <T extends Serializable> Map<InstanceDescriptor, Future<T>> run (Collection<InstanceDescriptor> members, Callable<T> callable) {
         
         HashSet<String> memberUUIDs = new HashSet<>(members.size());
@@ -221,10 +235,11 @@ public class PayaraMicroRuntimeImpl implements PayaraMicroRuntime  {
         
         Map<String, Future<T>> runCallable = instanceService.runCallable(memberUUIDs,callable);
         Map<InstanceDescriptor, Future<T>> result = new HashMap<>(runCallable.size());
-        for (String uuid : runCallable.keySet()) {
+        for (Entry<String, Future<T>> entry : runCallable.entrySet()) {
+            String uuid = entry.getKey();
             InstanceDescriptor id = instanceService.getDescriptor(uuid);
             if (id != null) {
-                result.put(id, runCallable.get(uuid));
+                result.put(id, entry.getValue());
             }
         }
         return result;

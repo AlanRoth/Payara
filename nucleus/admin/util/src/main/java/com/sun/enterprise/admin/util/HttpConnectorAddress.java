@@ -38,32 +38,36 @@
  * holder.
  */
 
-// Portions Copyright [2016-2019] [Payara Foundation and/or its affiliates]
+// Portions Copyright [2016-2020] [Payara Foundation and/or its affiliates]
 
 package com.sun.enterprise.admin.util;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-
-import java.io.IOException;
-import java.net.URL;
-import java.net.MalformedURLException;
-import java.net.URLConnection;
-import java.util.Base64;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.TrustManager;
 import static org.glassfish.grizzly.config.dom.Ssl.TLS1;
 import static org.glassfish.grizzly.config.dom.Ssl.TLS11;
 import static org.glassfish.grizzly.config.dom.Ssl.TLS12;
 import static org.glassfish.grizzly.config.dom.Ssl.TLS13;
 
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.Base64;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+
+import com.sun.enterprise.util.JDK;
+
 
 public final class HttpConnectorAddress {
+
     static final String HTTP_CONNECTOR = "http";
     static final String HTTPS_CONNECTOR = "https";
     public static final String  AUTHORIZATION_KEY     = "Authorization";
@@ -203,6 +207,13 @@ public final class HttpConnectorAddress {
                                         break;
 
                         case TLS13: protocol = TLS13;
+                                        if (!JDK.isTls13Supported()) {
+                                            if (JDK.isOpenJSSEFlagRequired()) {
+                                                protocol = TLS13;
+                                            } else {
+                                                protocol = DEFAULT_PROTOCOL;
+                                            }
+                                        }
                                         logger.log(Level.FINE, 
                                                 AdminLoggerInfo.settingHttpsProtocol,
                                                 protocol);

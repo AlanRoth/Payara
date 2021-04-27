@@ -41,12 +41,12 @@ holder.
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"> <modelVersion>4.0.0</modelVersion>
     
     <parent>
-        <groupId>org.glassfish.main</groupId>
+        <groupId>fish.payara.server.internal.payara-appserver-modules</groupId>
         <artifactId>payara-appserver-modules</artifactId>
-        <version>5.193-SNAPSHOT</version>
+        <version>5.2020.5-SNAPSHOT</version>
     </parent>
     
-    <groupId>fish.payara.microprofile</groupId>
+    <groupId>fish.payara.server.internal.payara-appserver-modules</groupId>
     <artifactId>microprofile</artifactId>
     <description>Parent POM for all Microprofile related modules</description>
     <packaging>pom</packaging>
@@ -61,5 +61,6 @@ holder.
         <module>opentracing</module>
         <!-- Extension of opentracing for Jax-ws, split out due to web distribution not having Jax-ws -->
         <module>opentracing-jaxws</module>
+        <module>microprofile-common</module>
     </modules>
 </project>

@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (c) 2016-2018 Payara Foundation and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016-2020 Payara Foundation and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -38,30 +38,28 @@
  */
 package fish.payara.nucleus.healthcheck.admin;
 
-import com.google.common.base.Function;
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+
+import javax.inject.Inject;
+
 import com.sun.enterprise.config.serverbeans.Config;
 import com.sun.enterprise.util.ColumnFormatter;
 import com.sun.enterprise.util.StringUtils;
-import fish.payara.nucleus.healthcheck.HealthCheckConstants;
-import fish.payara.nucleus.healthcheck.configuration.Checker;
-import fish.payara.nucleus.healthcheck.configuration.CheckerConfigurationType;
-import fish.payara.nucleus.healthcheck.configuration.HealthCheckServiceConfiguration;
-import fish.payara.nucleus.healthcheck.configuration.HoggingThreadsChecker;
-import fish.payara.nucleus.healthcheck.configuration.MicroProfileHealthCheckerConfiguration;
-import fish.payara.nucleus.healthcheck.configuration.ThresholdDiagnosticsChecker;
-import fish.payara.nucleus.healthcheck.preliminary.BaseHealthCheck;
-import fish.payara.nucleus.healthcheck.configuration.StuckThreadsChecker;
-import java.util.HashMap;
 
-import fish.payara.nucleus.notification.configuration.Notifier;
-import fish.payara.nucleus.notification.configuration.NotifierConfigurationType;
-import fish.payara.nucleus.notification.service.BaseNotifierService;
 import org.glassfish.api.ActionReport;
 import org.glassfish.api.I18n;
 import org.glassfish.api.Param;
-import org.glassfish.api.admin.*;
+import org.glassfish.api.admin.AdminCommand;
+import org.glassfish.api.admin.AdminCommandContext;
+import org.glassfish.api.admin.CommandLock;
+import org.glassfish.api.admin.ExecuteOn;
+import org.glassfish.api.admin.RestEndpoint;
+import org.glassfish.api.admin.RestEndpoints;
+import org.glassfish.api.admin.RuntimeType;
 import org.glassfish.config.support.CommandTarget;
 import org.glassfish.config.support.TargetType;
 import org.glassfish.hk2.api.PerLookup;
@@ -69,14 +67,21 @@ import org.glassfish.hk2.api.ServiceHandle;
 import org.glassfish.hk2.api.ServiceLocator;
 import org.glassfish.internal.api.Target;
 import org.jvnet.hk2.annotations.Service;
-import org.jvnet.hk2.config.types.Property;
-
-import javax.inject.Inject;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
 import org.jvnet.hk2.config.ConfigSupport;
 import org.jvnet.hk2.config.ConfigView;
+import org.jvnet.hk2.config.types.Property;
+
+import fish.payara.internal.notification.NotifierUtils;
+import fish.payara.internal.notification.PayaraNotifier;
+import fish.payara.nucleus.healthcheck.HealthCheckConstants;
+import fish.payara.nucleus.healthcheck.configuration.Checker;
+import fish.payara.nucleus.healthcheck.configuration.CheckerConfigurationType;
+import fish.payara.nucleus.healthcheck.configuration.HealthCheckServiceConfiguration;
+import fish.payara.nucleus.healthcheck.configuration.HoggingThreadsChecker;
+import fish.payara.nucleus.healthcheck.configuration.MicroProfileHealthCheckerConfiguration;
+import fish.payara.nucleus.healthcheck.configuration.StuckThreadsChecker;
+import fish.payara.nucleus.healthcheck.configuration.ThresholdDiagnosticsChecker;
+import fish.payara.nucleus.healthcheck.preliminary.BaseHealthCheck;
 
 /**
  * @author mertcaliskan
@@ -148,7 +153,7 @@ public class GetHealthCheckConfiguration implements AdminCommand, HealthCheckCon
 
         HealthCheckServiceConfiguration configuration = config.getExtensionByType(HealthCheckServiceConfiguration.class);
         List<ServiceHandle<BaseHealthCheck>> allServiceHandles = habitat.getAllServiceHandles(BaseHealthCheck.class);
-        List<ServiceHandle<BaseNotifierService>> allNotifierServiceHandles = habitat.getAllServiceHandles(BaseNotifierService.class);
+        List<ServiceHandle<PayaraNotifier>> allNotifierServiceHandles = habitat.getAllServiceHandles(PayaraNotifier.class);
 
         mainActionReport.appendMessage("Health Check Service Configuration is enabled?: " + configuration.getEnabled() + "\n");
         
@@ -160,7 +165,7 @@ public class GetHealthCheckConfiguration implements AdminCommand, HealthCheckCon
                         + configuration.getHistoricalTraceStoreSize() + "\n");
             }
 
-            if (!Strings.isNullOrEmpty(configuration.getHistoricalTraceStoreTimeout())) {
+            if (StringUtils.ok(configuration.getHistoricalTraceStoreTimeout())) {
                 mainActionReport.appendMessage("Health Check Historical Tracing Store Timeout in Seconds: "
                         + configuration.getHistoricalTraceStoreTimeout() + "\n");
             }
@@ -177,35 +182,26 @@ public class GetHealthCheckConfiguration implements AdminCommand, HealthCheckCon
 
         mainExtraProps.put("healthcheckConfiguration", mainExtraPropsMap);
         mainActionReport.setExtraProperties(mainExtraProps);
-
-        if (!configuration.getNotifierList().isEmpty()) {
-            List<Class<Notifier>> notifierClassList = Lists.transform(configuration.getNotifierList(), new Function<Notifier, Class<Notifier>>() {
-                @Override
-                public Class<Notifier> apply(Notifier input) {
-                    return resolveNotifierClass(input);
-                }
-            });
+            
+        final List<String> notifiers = configuration.getNotifierList();
+        if (!notifiers.isEmpty()) {
 
             Properties extraProps = new Properties();
-            for (ServiceHandle<BaseNotifierService> serviceHandle : allNotifierServiceHandles) {
-                Notifier notifier = configuration.getNotifierByType(serviceHandle.getService().getNotifierType());
-                if (notifier != null) {
-                    ConfigView view = ConfigSupport.getImpl(notifier);
-                    NotifierConfigurationType annotation = view.getProxyType().getAnnotation(NotifierConfigurationType.class);
+            for (ServiceHandle<PayaraNotifier> serviceHandle : allNotifierServiceHandles) {
 
-                    if (notifierClassList.contains(view.<Notifier>getProxyType())) {
-                        Object values[] = new Object[2];
-                        values[0] = annotation.type();
-                        values[1] = notifier.getEnabled();
-                        notifiersColumnFormatter.addRow(values);
+                final String notifierClassName = serviceHandle.getActiveDescriptor().getImplementationClass().getSimpleName();
+                final String notifierName = NotifierUtils.getNotifierName(serviceHandle.getActiveDescriptor());
 
-                        Map<String, Object> map = new HashMap<>(2);
-                        map.put("notifierName", values[0]);
-                        map.put("notifierEnabled", values[1]);
+                Object values[] = new Object[2];
+                values[0] = notifierName;
+                values[1] = notifiers.contains(notifierName);
+                notifiersColumnFormatter.addRow(values);
 
-                        extraProps.put("notifierList" + annotation.type(), map);
-                    }
-                }
+                Map<String, Object> map = new HashMap<>(2);
+                map.put("notifierName", values[0]);
+                map.put("notifierEnabled", values[1]);
+
+                extraProps.put("notifierList" + notifierClassName, map);
             }
             mainActionReport.getExtraProperties().putAll(extraProps);
             mainActionReport.appendMessage(notifiersColumnFormatter.toString());
@@ -344,34 +340,48 @@ public class GetHealthCheckConfiguration implements AdminCommand, HealthCheckCon
     
     private void addHoggingThreadsCheckerExtraProps(Properties hoggingThreadsExtraProps, 
             HoggingThreadsChecker hoggingThreadsChecker) {
-        Map<String, Object> extraPropsMap = new HashMap<>(6);       
-        
+        Map<String, Object> extraPropsMap = new HashMap<>(6);
+
         extraPropsMap.put("checkerName", hoggingThreadsChecker.getName());
         extraPropsMap.put("enabled", hoggingThreadsChecker.getEnabled());
         extraPropsMap.put("time", hoggingThreadsChecker.getTime());
         extraPropsMap.put("unit", hoggingThreadsChecker.getUnit());
         extraPropsMap.put("threshold-percentage", hoggingThreadsChecker.getThresholdPercentage());
         extraPropsMap.put("retry-count", hoggingThreadsChecker.getRetryCount());
-        
+
         hoggingThreadsExtraProps.put(hoggingThreadsPropertyName, extraPropsMap);
     }
-    
+
     private void addStuckThreadsCheckerExtrasProps(Properties stuckThreadsExtrasProps, StuckThreadsChecker stuckThreadsChecker){
-        Map<String, Object> extraPropsMap = new HashMap<String, Object>(6);
-        
+        Map<String, Object> extraPropsMap = new HashMap<>(6);
+
         extraPropsMap.put("checkerName", stuckThreadsChecker.getName());
         extraPropsMap.put("enabled", stuckThreadsChecker.getEnabled());
         extraPropsMap.put("time", stuckThreadsChecker.getTime());
         extraPropsMap.put("unit", stuckThreadsChecker.getUnit());
-        extraPropsMap.put("threshold", stuckThreadsChecker.getThreshold());
-        extraPropsMap.put("thresholdUnit", stuckThreadsChecker.getThresholdTimeUnit());
-        
+        Long thesholdInMillis = stuckThreadsThesholdInMillis(stuckThreadsChecker);
+        if (thesholdInMillis != null && thesholdInMillis <= 0) {
+            extraPropsMap.put("threshold", "1");
+            extraPropsMap.put("thresholdUnit", TimeUnit.MILLISECONDS.name());
+        } else {
+            extraPropsMap.put("threshold", stuckThreadsChecker.getThreshold());
+            extraPropsMap.put("thresholdUnit", stuckThreadsChecker.getThresholdTimeUnit());
+        }
         stuckThreadsExtrasProps.put(stuckThreadsPropertyName, extraPropsMap);
-        
     }
-    
+
+    private static Long stuckThreadsThesholdInMillis(StuckThreadsChecker stuckThreadsChecker) {
+        try {
+            return TimeUnit.MILLISECONDS.convert(
+                    Long.parseLong(stuckThreadsChecker.getThreshold()), 
+                    TimeUnit.valueOf(stuckThreadsChecker.getThresholdTimeUnit()));
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
     private void addMPHealthcheckCheckerExtrasProps(Properties mpHealthcheckExtrasProps, MicroProfileHealthCheckerConfiguration mpHealthcheckCheck) {
-        Map<String, Object> extraPropsMap = new HashMap<String, Object>(5);
+        Map<String, Object> extraPropsMap = new HashMap<>(5);
         extraPropsMap.put("checkerName", mpHealthcheckCheck.getName());
         extraPropsMap.put("enabled", mpHealthcheckCheck.getEnabled());
         extraPropsMap.put("time", mpHealthcheckCheck.getTime());
@@ -430,7 +440,7 @@ public class GetHealthCheckConfiguration implements AdminCommand, HealthCheckCon
         }
     }
     
-    private void addBaseCheckerExtraProps(Properties baseExtraProps, 
+    private static void addBaseCheckerExtraProps(Properties baseExtraProps, 
             Checker checker) {
         Map<String, Object> extraPropsMap = new HashMap<>(4);       
         
@@ -491,7 +501,7 @@ public class GetHealthCheckConfiguration implements AdminCommand, HealthCheckCon
         return extraProps;
     }
     
-    private Map<String, Object> populateDefaultValuesMap(Map<String, Object> extraPropsMap) {
+    private static Map<String, Object> populateDefaultValuesMap(Map<String, Object> extraPropsMap) {
         // Common properties
         extraPropsMap.put("enabled", DEFAULT_ENABLED);
         extraPropsMap.put("time", DEFAULT_TIME);
@@ -515,8 +525,4 @@ public class GetHealthCheckConfiguration implements AdminCommand, HealthCheckCon
         return extraPropsMap;
     }
 
-    private Class<Notifier> resolveNotifierClass(Notifier input) {
-        ConfigView view = ConfigSupport.getImpl(input);
-        return view.getProxyType();
-    }
 }

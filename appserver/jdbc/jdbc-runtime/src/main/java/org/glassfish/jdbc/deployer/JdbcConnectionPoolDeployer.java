@@ -37,7 +37,7 @@
  * only if the new code is made subject to such option by the copyright
  * holder.
  */
-// Portions Copyright [2016-2017] [Payara Foundation]
+// Portions Copyright [2016-2020] [Payara Foundation and/or affiliates]
 
 package org.glassfish.jdbc.deployer;
 
@@ -298,7 +298,7 @@ public class JdbcConnectionPoolDeployer implements ResourceDeployer {
             JdbcConnectionPool adminPool,
             ConnectorConnectionPool conConnPool, ConnectorDescriptor connDesc) {
 
-        ArrayList propList = new ArrayList();
+        ArrayList<ConnectorConfigProperty> propList = new ArrayList<>();
 
         if (adminPool.getResType() != null) {
             if (ConnectorConstants.JAVA_SQL_DRIVER.equals(adminPool.getResType())) {
@@ -511,12 +511,12 @@ public class JdbcConnectionPoolDeployer implements ResourceDeployer {
                 } else if ("USERNAME".equals(name.toUpperCase(Locale.getDefault()))
                         || "USER".equals(name.toUpperCase(locale))) {
 
-                    propList.add(new ConnectorConfigProperty("User", (String) TranslatedConfigView.getTranslatedValue(rp.getValue()), "user name", "java.lang.String"));
+                    propList.add(new ConnectorConfigProperty("User", TranslatedConfigView.expandValue(rp.getValue()), "user name", "java.lang.String"));
 
                 } else if ("PASSWORD".equals(name.toUpperCase(locale))) {
 
                     propList.add(new ConnectorConfigProperty("Password",
-                            (String) TranslatedConfigView.getTranslatedValue(rp.getValue()), "Password", "java.lang.String"));
+                            TranslatedConfigView.expandValue(rp.getValue()), "Password", "java.lang.String"));
 
                 } else if ("JDBC30DATASOURCE".equals(name.toUpperCase(locale))) {
 
@@ -554,12 +554,12 @@ public class JdbcConnectionPoolDeployer implements ResourceDeployer {
 
                     propList.add(new ConnectorConfigProperty(
                             (String) mcfConPropKeys.get(name.toUpperCase(Locale.getDefault())),
-                            rp.getValue() == null ? "" : (String) TranslatedConfigView.getTranslatedValue(rp.getValue()),
+                            rp.getValue() == null ? "" : TranslatedConfigView.expandValue(rp.getValue()),
                             "Some property",
                             "java.lang.String"));
                 } else {
                     driverProperties = driverProperties + "set" + escape(name)
-                            + "#" + escape((String) TranslatedConfigView.getTranslatedValue(rp.getValue())) + "##";
+                            + "#" + escape(TranslatedConfigView.expandValue(rp.getValue())) + "##";
                 }
             }
 

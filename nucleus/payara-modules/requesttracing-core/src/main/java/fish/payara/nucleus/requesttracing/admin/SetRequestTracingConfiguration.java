@@ -1,6 +1,5 @@
 /*
- *
- * Copyright (c) 2016-2017 Payara Foundation and/or its affiliates. All rights reserved.
+ * Copyright (c) [2016-2020] Payara Foundation and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -38,30 +37,51 @@
  */
 package fish.payara.nucleus.requesttracing.admin;
 
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyVetoException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
+
+import javax.inject.Inject;
+
 import com.sun.enterprise.config.serverbeans.Config;
+import com.sun.enterprise.universal.i18n.LocalStringsImpl;
 import com.sun.enterprise.util.LocalStringManagerImpl;
 import com.sun.enterprise.util.SystemPropertyConstants;
-import fish.payara.nucleus.notification.TimeUtil;
-import fish.payara.nucleus.requesttracing.RequestTracingService;
-import fish.payara.nucleus.requesttracing.configuration.RequestTracingServiceConfiguration;
+
 import org.glassfish.api.ActionReport;
+import org.glassfish.api.ActionReport.ExitCode;
 import org.glassfish.api.I18n;
 import org.glassfish.api.Param;
-import org.glassfish.api.admin.*;
+import org.glassfish.api.admin.AdminCommand;
+import org.glassfish.api.admin.AdminCommandContext;
+import org.glassfish.api.admin.CommandLock;
+import org.glassfish.api.admin.ExecuteOn;
+import org.glassfish.api.admin.RestEndpoint;
+import org.glassfish.api.admin.RestEndpoints;
+import org.glassfish.api.admin.RuntimeType;
+import org.glassfish.api.admin.ServerEnvironment;
 import org.glassfish.config.support.CommandTarget;
 import org.glassfish.config.support.TargetType;
 import org.glassfish.hk2.api.PerLookup;
+import org.glassfish.hk2.api.ServiceHandle;
+import org.glassfish.hk2.api.ServiceLocator;
 import org.glassfish.internal.api.Target;
 import org.jvnet.hk2.annotations.Service;
 import org.jvnet.hk2.config.ConfigSupport;
 import org.jvnet.hk2.config.SingleConfigCode;
 import org.jvnet.hk2.config.TransactionFailure;
 
-import javax.inject.Inject;
-import java.beans.PropertyVetoException;
-import java.util.Properties;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
+import fish.payara.nucleus.requesttracing.RequestTracingService;
+import fish.payara.internal.notification.NotifierUtils;
+import fish.payara.internal.notification.PayaraNotification;
+import fish.payara.internal.notification.PayaraNotifier;
+import fish.payara.internal.notification.TimeUtil;
+import fish.payara.nucleus.requesttracing.configuration.RequestTracingServiceConfiguration;
 
 /**
  * Admin command to enable/disable all request tracing services defined in
@@ -83,6 +103,10 @@ import java.util.logging.Logger;
 public class SetRequestTracingConfiguration implements AdminCommand {
 
     final private static LocalStringManagerImpl strings = new LocalStringManagerImpl(SetRequestTracingConfiguration.class);
+    private static final LocalStringsImpl STRINGS = new LocalStringsImpl(SetRequestTracingConfiguration.class);
+
+    @Inject
+    private ServiceLocator serviceLocator;
 
     @Inject
     ServerEnvironment server;
@@ -150,6 +174,15 @@ public class SetRequestTracingConfiguration implements AdminCommand {
     @Param(name = "historicTraceStoreTimeout", optional = true)
     private String historicTraceStoreTimeout;
 
+    @Param(name = "enableNotifiers", alias = "enable-notifiers", optional = true)
+    private List<String> enableNotifiers;
+
+    @Param(name = "disableNotifiers", alias = "disable-notifiers", optional = true)
+    private List<String> disableNotifiers;
+
+    @Param(name = "setNotifiers", alias = "set-notifiers", optional = true)
+    private List<String> setNotifiers;
+
     @Override
     public void execute(AdminCommandContext context) {
         final ActionReport actionReport = context.getActionReport();
@@ -163,66 +196,112 @@ public class SetRequestTracingConfiguration implements AdminCommand {
         final RequestTracingServiceConfiguration requestTracingServiceConfiguration = config.getExtensionByType(RequestTracingServiceConfiguration.class);
 
         if (requestTracingServiceConfiguration != null) {
+            final Set<String> notifierNames = NotifierUtils.getNotifierNames(serviceLocator);
             try {
                 ConfigSupport.apply(new SingleConfigCode<RequestTracingServiceConfiguration>() {
                     @Override
-                    public Object run(final RequestTracingServiceConfiguration requestTracingServiceConfigurationProxy) throws
+                    public Object run(final RequestTracingServiceConfiguration proxy) throws
                             PropertyVetoException, TransactionFailure {
+                        boolean warn = false;
                         if (enabled != null) {
-                            requestTracingServiceConfigurationProxy.enabled(enabled.toString());
+                            proxy.enabled(enabled.toString());
                         }
                         
                         if (sampleRate != null) {
-                            requestTracingServiceConfigurationProxy.setSampleRate(sampleRate);
+                            proxy.setSampleRate(sampleRate);
                         }
                         if (adaptiveSamplingEnabled != null) {
-                            requestTracingServiceConfigurationProxy.setAdaptiveSamplingEnabled(adaptiveSamplingEnabled.toString());
+                            proxy.setAdaptiveSamplingEnabled(adaptiveSamplingEnabled.toString());
                         }
                         if (adaptiveSamplingTargetCount != null) {
-                            requestTracingServiceConfigurationProxy.setAdaptiveSamplingTargetCount(adaptiveSamplingTargetCount);
+                            proxy.setAdaptiveSamplingTargetCount(adaptiveSamplingTargetCount);
                         }
                         if (adaptiveSamplingTimeValue != null) {
-                            requestTracingServiceConfigurationProxy.setAdaptiveSamplingTimeValue(adaptiveSamplingTimeValue.toString());
+                            proxy.setAdaptiveSamplingTimeValue(adaptiveSamplingTimeValue.toString());
                         }
                         if (adaptiveSamplingTimeUnit != null) {
-                            requestTracingServiceConfigurationProxy.setAdaptiveSamplingTimeUnit(adaptiveSamplingTimeUnit);
+                            proxy.setAdaptiveSamplingTimeUnit(adaptiveSamplingTimeUnit);
                         }
                         
                         if (applicationsOnlyEnabled != null) {
-                            requestTracingServiceConfigurationProxy.setApplicationsOnlyEnabled(applicationsOnlyEnabled.toString());
+                            proxy.setApplicationsOnlyEnabled(applicationsOnlyEnabled.toString());
                         }
                         if (thresholdValue != null) {
-                            requestTracingServiceConfigurationProxy.setThresholdValue(thresholdValue);
+                            proxy.setThresholdValue(thresholdValue);
                         }
                         if (thresholdUnit != null) {
-                            requestTracingServiceConfigurationProxy.setThresholdUnit(thresholdUnit);
+                            proxy.setThresholdUnit(thresholdUnit);
                         }
                         if (sampleRateFirstEnabled != null) {
-                            requestTracingServiceConfigurationProxy.setSampleRateFirstEnabled(sampleRateFirstEnabled.toString());
+                            proxy.setSampleRateFirstEnabled(sampleRateFirstEnabled.toString());
                         }
                         
                         if (traceStoreSize != null) {
-                            requestTracingServiceConfigurationProxy.setTraceStoreSize(traceStoreSize.toString());
+                            warn = !traceStoreSize.toString().equals(proxy.getTraceStoreSize());
+                            proxy.setTraceStoreSize(traceStoreSize.toString());
                         }
                         if (traceStoreTimeout != null) {
-                            requestTracingServiceConfigurationProxy.setTraceStoreTimeout(traceStoreTimeout);
+                            warn = !traceStoreTimeout.equals(proxy.getTraceStoreTimeout());
+                            proxy.setTraceStoreTimeout(traceStoreTimeout);
                         }
                         if (reservoirSamplingEnabled != null) {
-                            requestTracingServiceConfigurationProxy.setReservoirSamplingEnabled(reservoirSamplingEnabled.toString());
+                            proxy.setReservoirSamplingEnabled(reservoirSamplingEnabled.toString());
                         }
                         
                         if (historicTraceStoreEnabled != null) {
-                            requestTracingServiceConfigurationProxy.setHistoricTraceStoreEnabled(historicTraceStoreEnabled.toString());
+                            proxy.setHistoricTraceStoreEnabled(historicTraceStoreEnabled.toString());
                         }
                         if (historicTraceStoreSize != null) {
-                            requestTracingServiceConfigurationProxy.setHistoricTraceStoreSize(historicTraceStoreSize.toString());
+                            warn = !historicTraceStoreSize.toString().equals(proxy.getHistoricTraceStoreSize());
+                            proxy.setHistoricTraceStoreSize(historicTraceStoreSize.toString());
                         }
                         if (historicTraceStoreTimeout != null) {
-                            requestTracingServiceConfigurationProxy.setHistoricTraceStoreTimeout(historicTraceStoreTimeout);
+                            warn = !historicTraceStoreTimeout.equals(proxy.getHistoricTraceStoreTimeout());
+                            proxy.setHistoricTraceStoreTimeout(historicTraceStoreTimeout);
                         }
 
-                        actionReport.setActionExitCode(ActionReport.ExitCode.SUCCESS);
-                        return requestTracingServiceConfigurationProxy;
+                        List<String> notifiers = proxy.getNotifierList();
+                        if (enableNotifiers != null) {
+                            for (String notifier : enableNotifiers) {
+                                if (notifierNames.contains(notifier)) {
+                                    if (!notifiers.contains(notifier)) {
+                                        notifiers.add(notifier);
+                                    }
+                                } else {
+                                    throw new PropertyVetoException("Unrecognised notifier " + notifier,
+                                            new PropertyChangeEvent(proxy, "notifiers", notifiers, notifiers));
+                                }
+                            }
+                        }
+                        if (disableNotifiers != null) {
+                            for (String notifier : disableNotifiers) {
+                                if (notifierNames.contains(notifier)) {
+                                    notifiers.remove(notifier);
+                                } else {
+                                    throw new PropertyVetoException("Unrecognised notifier " + notifier,
+                                            new PropertyChangeEvent(proxy, "notifiers", notifiers, notifiers));
+                                }
+                            }
+                        }
+                        if (setNotifiers != null) {
+                            notifiers.clear();
+                            for (String notifier : setNotifiers) {
+                                if (notifierNames.contains(notifier)) {
+                                    if (!notifiers.contains(notifier)) {
+                                        notifiers.add(notifier);
+                                    }
+                                } else {
+                                    throw new PropertyVetoException("Unrecognised notifier " + notifier,
+                                            new PropertyChangeEvent(proxy, "notifiers", notifiers, notifiers));
+                                }
+                            }
+                        }
+
+                        actionReport.setActionExitCode(ExitCode.SUCCESS);
+                        if (warn) {
+                            actionReport.setMessage(STRINGS.get("requesttracing.configure.store.size.warning"));
+                        }
+                        return proxy;
                     }
                 }, requestTracingServiceConfiguration);
             } catch (TransactionFailure ex) {
@@ -322,6 +401,24 @@ public class SetRequestTracingConfiguration implements AdminCommand {
             service.getExecutionOptions().setHistoricTraceStoreTimeout(TimeUtil.setStoreTimeLimit(historicTraceStoreTimeout));
             actionReport.appendMessage(strings.getLocalString("requesttracing.configure.historictrace.timeout.success",
                     "Request Tracing Historic Trace Store Timeout is set to {0}.", historicTraceStoreTimeout) + "\n");
+        }
+
+        Set<String> notifiers = service.getExecutionOptions().getEnabledNotifiers();
+        if (enableNotifiers != null) {
+            enableNotifiers.forEach(notifiers::add);
+            actionReport.appendMessage(strings.getLocalString("requesttracing.configure.notifier.enable.success",
+                    "Request Tracing Notifiers {0} have been enabled.", Arrays.toString(enableNotifiers.toArray())) + "\n");
+        }
+        if (disableNotifiers != null) {
+            disableNotifiers.forEach(notifiers::remove);
+            actionReport.appendMessage(strings.getLocalString("requesttracing.configure.notifier.disable.success",
+                    "Request Tracing Notifiers {0} have been disabled.", Arrays.toString(disableNotifiers.toArray())) + "\n");
+        }
+        if (setNotifiers != null) {
+            notifiers.clear();
+            setNotifiers.forEach(notifiers::add);
+            actionReport.appendMessage(strings.getLocalString("requesttracing.configure.notifier.enable.success",
+                    "Request Tracing Notifiers {0} have been enabled.", Arrays.toString(setNotifiers.toArray())) + "\n");
         }
 
         service.bootstrapRequestTracingService();

@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2019 Payara Foundation and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019-2020 Payara Foundation and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -40,6 +40,7 @@
 package fish.payara.microprofile.faulttolerance.policy;
 
 import java.lang.reflect.Method;
+import java.util.Objects;
 
 import javax.interceptor.InvocationContext;
 
@@ -53,7 +54,7 @@ import javassist.Modifier;
 
 /**
  * The resolved "cached" information of a {@link Fallback} annotation an a specific method.
- * 
+ *
  * @author Jan Bernitt
  */
 public final class FallbackPolicy extends Policy {
@@ -61,8 +62,16 @@ public final class FallbackPolicy extends Policy {
     public final Class<? extends FallbackHandler<?>> value;
     public final String fallbackMethod;
     public final Method method;
+    private final Class<? extends Throwable>[] applyOn;
+    private final Class<? extends Throwable>[] skipOn;
 
+    @SuppressWarnings("unchecked")
     public FallbackPolicy(Method annotated, Class<? extends FallbackHandler<?>> value, String fallbackMethod) {
+        this(annotated, value, fallbackMethod, new Class[] { Throwable.class }, new Class[0]);
+    }
+
+    public FallbackPolicy(Method annotated, Class<? extends FallbackHandler<?>> value, String fallbackMethod,
+            Class<? extends Throwable>[] applyOn, Class<? extends Throwable>[] skipOn) {
         checkUnambiguous(annotated, value, fallbackMethod);
         this.value = value;
         this.fallbackMethod = fallbackMethod;
@@ -80,6 +89,8 @@ public final class FallbackPolicy extends Policy {
         if (isHandlerPresent()) {
             checkReturnsSameAs(annotated, Fallback.class, "value", value, "handle", ExecutionContext.class);
         }
+        this.applyOn = applyOn;
+        this.skipOn = skipOn;
     }
 
     public static FallbackPolicy create(InvocationContext context, FaultToleranceConfig config) {
@@ -87,7 +98,9 @@ public final class FallbackPolicy extends Policy {
             Fallback annotation = config.getAnnotation(Fallback.class);
             return new FallbackPolicy(context.getMethod(),
                     config.value(annotation),
-                    config.fallbackMethod(annotation));
+                    config.fallbackMethod(annotation),
+                    config.applyOn(annotation),
+                    config.skipOn(annotation));
         }
         return null;
     }
@@ -100,7 +113,10 @@ public final class FallbackPolicy extends Policy {
     }
 
     private static void checkAccessible(Method annotated, Method fallback) {
-        boolean samePackage = fallback.getDeclaringClass().getPackage().equals(annotated.getDeclaringClass().getPackage());
+        boolean samePackage = Objects.equals(
+            fallback.getDeclaringClass().getPackage(),
+            annotated.getDeclaringClass().getPackage()
+        );
         boolean sameClass = fallback.getDeclaringClass().equals(annotated.getDeclaringClass());
         if (Modifier.isPackage(fallback.getModifiers()) && !samePackage
                 || Modifier.isPrivate(fallback.getModifiers()) && !sameClass) {
@@ -113,4 +129,25 @@ public final class FallbackPolicy extends Policy {
         return value != null && value != Fallback.DEFAULT.class;
     }
 
+    /**
+     * Helper method that checks whether or not the given exception is should trigger applying the fallback or not.
+     * 
+     * Relevant section from {@link Fallback} javadocs:
+     * <blockquote>
+     * When a method returns and the Fallback policy is present, the following rules are applied:
+     * <ol>
+     * <li>If the method returns normally (doesn't throw), the result is simply returned.
+     * <li>Otherwise, if the thrown object is assignable to any value in the {@link #skipOn()} parameter, the thrown object will be rethrown.
+     * <li>Otherwise, if the thrown object is assignable to any value in the {@link #applyOn()} parameter, 
+     * the Fallback policy, detailed above, will be applied.
+     * <li>Otherwise the thrown object will be rethrown.
+     * </ol>
+     * </blockquote>
+     * 
+     * @param ex The exception to check
+     * @return true, when fallback should be applied, false to rethrow the exception
+     */
+    public boolean isFallbackApplied(Throwable ex) {
+        return !Policy.isCaught(ex, skipOn) && Policy.isCaught(ex, applyOn);
+    }
 }

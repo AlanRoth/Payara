@@ -38,6 +38,7 @@
     only if the new code is made subject to such option by the copyright
     holder.
 
+    Portions Copyright [2020] [Payara Foundation and/or its affiliates]
 -->
 
 #include "/cluster/shared/handlers.inc"
@@ -103,6 +104,7 @@
                        setPageSessionAttribute(key="showSetupPswd" value="#{true}");
                    }
                    setPageSessionAttribute(key="showKeyFile" value="#{true}");
+                   setPageSessionAttribute(key="isTemp" value="#{false}");
             }
             if ("#{pageSession.valueMap['type']}=CONFIG"){
                    setPageSessionAttribute(key="showSSH" value="#{false}")
@@ -112,6 +114,7 @@
                    setPageSessionAttribute(key="showInstalldirConfig" value="#{true}");
                    setPageSessionAttribute(key="showInstalldirDocker" value="#{false}");
                    setPageSessionAttribute(key="showInstallOp" value="#{false}");
+                   setPageSessionAttribute(key="isTemp" value="#{false}");
             }
             if ("#{pageSession.valueMap['type']}=DCOM"){
                    setPageSessionAttribute(key="showSSH" value="#{false}")
@@ -124,6 +127,7 @@
                    if ("#{pageSession.valueMap['validateDcom']}"){
                         setPageSessionAttribute(key="showTestdir" value="#{true}");
                    }
+                   setPageSessionAttribute(key="isTemp" value="#{false}");
             }
             if ("#{pageSession.valueMap['type']}=DOCKER"){
                 setPageSessionAttribute(key="showSSH" value="#{false}")
@@ -134,6 +138,18 @@
                 setPageSessionAttribute(key="showInstalldirConfig" value="#{false}");
                 setPageSessionAttribute(key="showInstalldirDocker" value="#{true}");
                 setPageSessionAttribute(key="showInstallOp" value="#{false}");
+                setPageSessionAttribute(key="isTemp" value="#{false}");
+            }
+            if ("#{pageSession.valueMap['type']}=TEMP"){
+                setPageSessionAttribute(key="showSSH" value="#{false}")
+                setPageSessionAttribute(key="showDCOM" value="#{false}")
+                 setPageSessionAttribute(key="showCONFIG" value="#{false}")
+                 setPageSessionAttribute(key="showDOCKER" value="#{false}")
+                 setPageSessionAttribute(key="showInstalldirSSH" value="#{false}");
+                 setPageSessionAttribute(key="showInstalldirConfig" value="#{false}");
+                 setPageSessionAttribute(key="showInstalldirDocker" value="#{false}");
+                 setPageSessionAttribute(key="showInstallOp" value="#{false}");
+                 setPageSessionAttribute(key="isTemp" value="#{true}");
             }
         />
      </event>
@@ -148,7 +164,11 @@
                 <sun:staticText id="IdStatic" text="#{pageSession.nodeName}"/>
             </sun:property>
 
-            <sun:property id="typeProp" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.type}" helpText="$resource{i18ncs.node.typeHelp}">
+            <sun:property id="typePropHidden" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.type}" rendered="#{pageSession.isTemp}" visible="#{pageSession.isTemp}">
+                <sun:staticText id="typeStatic" text="TEMP"/>
+            </sun:property>
+
+            <sun:property id="typeProp" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.type}" helpText="$resource{i18ncs.node.typeHelp}" rendered="#{!pageSession.isTemp}" visible="#{!pageSession.isTemp}">
                 <sun:dropDown id="type" labels={"SSH" "DCOM" "CONFIG" "DOCKER"}  selected="#{pageSession.valueMap['type']}"
                               onChange="javascript:showSection(this.value, '#{pageSession.sshConnectorSectionId}', '#{pageSession.dcomSectionId}', '#{pageSession.dockerSectionId}',
                                         '#{pageSession.installdirSshId}', '#{pageSession.installdirConfigId}', '#{pageSession.installdirDockerId}',
@@ -159,7 +179,11 @@
                 </sun:dropDown>
             </sun:property>
 
-            <sun:property id="NodeHost"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.NodeHost}" helpText="$resource{i18ncs.node.NodeHostHelp}">
+            <sun:property id="NodeHostHidden" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.NodeHost}" rendered="#{pageSession.isTemp}" visible="#{pageSession.isTemp}">
+                <sun:staticText id="NodeHostStatic" text="#{pageSession.valueMap['nodehost']}"/>
+            </sun:property>
+
+            <sun:property id="NodeHost"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.NodeHost}" helpText="$resource{i18ncs.node.NodeHostHelp}" rendered="#{!pageSession.isTemp}" visible="#{!pageSession.isTemp}">
                 <sun:textField id="NodeHost" text="#{pageSession.valueMap['nodehost']}"  columns="$int{60}" maxLength="#{sessionScope.fieldLengths['maxLength.node.NodeHost']}">
                 <!afterCreate
                     getClientId(component="$this{component}" clientId="#{pageSession.nodeHostId}");
@@ -167,19 +191,27 @@
                 </sun:textField>
             </sun:property>
 
-            <sun:property id="NodeHome"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.NodeDir}" helpText="$resource{i18ncs.node.NodeDirHelp}">
+            <sun:property id="NodeHomeHidden" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.NodeDir}" rendered="#{sessionScope.isTemp}" visible="#{sessionScope.isTemp}">
+                <sun:staticText id="NodeHomeStatic" text="#{pageSession.valueMap['nodedir']}"/>
+            </sun:property>
+
+            <sun:property id="NodeHome"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.NodeDir}" helpText="$resource{i18ncs.node.NodeDirHelp}" rendered="#{!pageSession.isTemp}" visible="#{!pageSession.isTemp}">
                 <sun:textField id="NodeHome"  text="#{pageSession.valueMap['nodedir']}" columns="$int{60}" maxLength="#{sessionScope.fieldLengths['maxLength.node.NodeDir']}" />
             </sun:property>
 
 
-            <sun:property id="installdir-ssh"  visible="#{pageSession.showInstalldirSSH}"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.InstallDir}" helpText="$resource{i18ncs.node.InstallDirHelp}">
+            <sun:property id="installdir-ssh"  visible="#{pageSession.showInstalldirSSH}"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.InstallDir}" helpText="$resource{i18ncs.node.InstallDirHelp}" rendered="#{!pageSession.isTemp}">
                 <sun:textField id="installDirssh" text="#{pageSession.valueMap['installdir']}"  columns="$int{60}" maxLength="#{sessionScope.fieldLengths['maxLength.node.InstallDir']}"  />
                 <!afterCreate
                     getClientId(component="$this{component}" clientId="#{pageSession.installdirSshId}");
                 />
             </sun:property>
 
-            <sun:property id="installdir-config" visible="#{pageSession.showInstalldirConfig}"   labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.InstallDir}" helpText="$resource{i18ncs.node.InstallDirHelp}">
+            <sun:property id="installdir-hidden" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.InstallDir}" rendered="#{pageSession.isTemp}" visible="#{pageSession.isTemp}">
+                <sun:staticText id="installDirHiddenStatic" text="#{pageSession.valueMap['installdirConfig']}"/>
+            </sun:property>
+
+            <sun:property id="installdir-config" visible="#{pageSession.showInstalldirConfig}"   labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.InstallDir}" helpText="$resource{i18ncs.node.InstallDirHelp}" rendered="#{!pageSession.isTemp}">
                 <sun:textField id="installDirConfig" text="#{pageSession.valueMap['installdirConfig']}"  columns="$int{60}" maxLength="#{sessionScope.fieldLengths['maxLength.node.InstallDir']}"  />
                  <!afterCreate
                     getClientId(component="$this{component}" clientId="#{pageSession.installdirConfigId}");
@@ -187,7 +219,7 @@
 
             </sun:property>
 
-            <sun:property id="installdir-docker" visible="#{pageSession.showInstalldirDocker}" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.InstallDir}" helpText="$resource{i18ncs.node.DockerInstallDirHelp}">
+            <sun:property id="installdir-docker" visible="#{pageSession.showInstalldirDocker}" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.InstallDir}" helpText="$resource{i18ncs.node.DockerInstallDirHelp}" rendered="#{!pageSession.isTemp}">
                 <sun:textField id="installDirDocker" text="#{pageSession.valueMap['installdirDocker']}"  columns="$int{60}" maxLength="#{sessionScope.fieldLengths['maxLength.node.InstallDir']}"  />
                 <!afterCreate
                     getClientId(component="$this{component}" clientId="#{pageSession.installdirDockerId}");
@@ -234,18 +266,18 @@
                 </sun:dropDown>
             </sun:property>
 
-            <sun:property id="newPasswordProp"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.enterPassword}" helpText="$resource{i18ncs.node.enterPasswordHelp}" >
+            <sun:property id="sshPasswordProp"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.enterPassword}" helpText="$resource{i18ncs.node.enterPasswordHelp}" >
                 <!afterCreate
                     getClientId(component="$this{component}" clientId="#{pageSession.ps1PropId}");
                 />
-                <sun:passwordField id="NewPassword" name="password" text="#{pageSession.pswdText}" columns="$int{25}" maxLength="#{sessionScope.fieldLengths['maxLength.server.NewPassword']}"  >
+                <sun:passwordField id="sshPassword" name="sshPassword" text="#{pageSession.pswdText}" columns="$int{25}" maxLength="#{sessionScope.fieldLengths['maxLength.server.NewPassword']}"  >
                  <!afterCreate
                     getClientId(component="$this{component}" clientId="#{pageSession.ps1Id}");
                 />
             </sun:passwordField>
             </sun:property>
 
-            
+
             <sun:property id="pswdAlias" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.passwordAlias}" helpText="$resource{i18ncs.node.passwordAliasHelp}">
                 <!afterCreate
                         getClientId(component="$this{component}" clientId="#{pageSession.pswdAliasPropId}");
@@ -345,8 +377,8 @@
                 <sun:textField id="winUser" text="#{pageSession.valueMap['windowsuser']}" columns="$int{60}" maxLength="#{sessionScope.fieldLengths['maxLength.node.windowUser']}"  />
             </sun:property>
 
-            <sun:property id="psSelected" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.selectWinPasswordSelect}" helpText="$resource{i18ncs.node.selectWinPasswordSelectHelp}">
-                <sun:dropDown id="psSelected" labels={"$resource{i18ncs.node.textPassword}", "$resource{i18ncs.node.usePasswordAlias}" } values={"2", "3"}
+            <sun:property id="winPsSelected" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.selectWinPasswordSelect}" helpText="$resource{i18ncs.node.selectWinPasswordSelectHelp}">
+                <sun:dropDown id="winPsSelected" labels={"$resource{i18ncs.node.textPassword}", "$resource{i18ncs.node.usePasswordAlias}" } values={"2", "3"}
                       selected="#{pageSession.winPsSelected}"
                       onChange="showPswdSection(this.value, '#{pageSession.winPs1PropId}', '#{pageSession.winPswdAliasPropId}');"
                  >
@@ -356,11 +388,11 @@
                 </sun:dropDown>
             </sun:property>
 
-            <sun:property id="newPasswordProp"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.winUserPassword}" helpText="$resource{i18ncs.node.winUserPasswordHelp}" >
+            <sun:property id="winPswdTextProp"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.winUserPassword}" helpText="$resource{i18ncs.node.winUserPasswordHelp}" >
                 <!afterCreate
                         getClientId(component="$this{component}" clientId="#{pageSession.winPs1PropId}");
                     />
-                <sun:passwordField id="NewPassword" name="password" text="#{pageSession.winPswdText}" columns="$int{25}" maxLength="#{sessionScope.fieldLengths['maxLength.server.NewPassword']}"  >
+                <sun:passwordField id="winPswdText" name="winPassword" text="#{pageSession.winPswdText}" columns="$int{25}" maxLength="#{sessionScope.fieldLengths['maxLength.server.NewPassword']}"  >
                      <!afterCreate
                         getClientId(component="$this{component}" clientId="#{pageSession.winPs1Id}");
                     />
@@ -368,11 +400,11 @@
             </sun:property>
 
 
-            <sun:property id="pswdAlias" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.passwordAlias}" helpText="$resource{i18ncs.node.passwordAliasHelp}">
+            <sun:property id="winPswdAlias" labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.passwordAlias}" helpText="$resource{i18ncs.node.passwordAliasHelp}">
                 <!afterCreate
                     getClientId(component="$this{component}" clientId="#{pageSession.winPswdAliasPropId}");
                 />
-                <sun:dropDown id="pswdAlias" labels="#{pageSession.listOfAliases}" selected="#{pageSession.winPswdAlias}" >
+                <sun:dropDown id="winPswdAlias" labels="#{pageSession.listOfAliases}" selected="#{pageSession.winPswdAlias}" >
                     <!beforeCreate
                         setAttribute(key="doEscape" value="true");
                         gfr.getPswdAliases();
@@ -401,7 +433,7 @@
                 <sun:textField id="dockerPasswordFile" text="#{pageSession.valueMap['dockerpasswordfile']}" columns="$int{60}" />
             </sun:property>
             <sun:property id="useTls"  labelAlign="left" noWrap="#{true}" overlapLabel="#{false}" label="$resource{i18ncs.node.useTls}" helpText="$resource{i18ncs.node.useTlsHelp}">
-                <sun:checkbox id="useTls" selected="#{pageSession.valueMap['usetls']}" label="$resource{i18n.common.Enabled}" selectedValue="true"/>
+                <sun:checkbox id="useTls" selected="#{pageSession.usetlsSelected}" label="$resource{i18n.common.Enabled}" selectedValue="true"/>
             </sun:property>
 
         </sun:propertySheetSection>
